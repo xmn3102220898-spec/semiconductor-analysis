@@ -1,0 +1,581 @@
+
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>半导体设备 AI 诊断平台</title>
+
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <style>
+        /* 统一页面颜色和尺寸 */
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            font-family: "Microsoft YaHei", Arial, sans-serif;
+            background: #f3f6fb;
+            color: #1e293b;
+        }
+
+        /* 顶部导航栏 */
+        .header {
+            background: #142238;
+            color: white;
+            padding: 22px 32px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .header h1 {
+            margin: 0;
+            font-size: 22px;
+        }
+
+        .header p {
+            margin: 8px 0 0;
+            color: #b8c7dc;
+            font-size: 13px;
+        }
+
+        .demo-tag {
+            background: #334155;
+            color: #e2e8f0;
+            padding: 8px 12px;
+            border-radius: 6px;
+            font-size: 12px;
+            white-space: nowrap;
+        }
+
+        /* 页面主体 */
+        .container {
+            max-width: 1200px;
+            margin: 28px auto;
+            padding: 0 24px;
+        }
+
+        .section-title {
+            font-size: 18px;
+            margin: 0 0 18px;
+        }
+
+        /* 通用卡片布局 */
+        .cards {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 20px;
+            margin-bottom: 28px;
+        }
+
+        .card {
+            background: white;
+            border-radius: 12px;
+            padding: 24px;
+            box-shadow: 0 3px 12px rgba(15, 23, 42, 0.05);
+            border: 1px solid #e7edf5;
+        }
+
+        .card-label {
+            color: #64748b;
+            font-size: 14px;
+        }
+
+        .card-value {
+            font-size: 30px;
+            font-weight: bold;
+            margin-top: 14px;
+        }
+
+        .card-note {
+            margin-top: 10px;
+            color: #64748b;
+            font-size: 13px;
+        }
+
+        .risk {
+            color: #dc2626;
+        }
+
+        .score {
+            color: #2563eb;
+        }
+
+        /* 风险警告区域 */
+        .alert {
+            background: #fff1f2;
+            border: 1px solid #fecdd3;
+            border-left: 5px solid #dc2626;
+            border-radius: 10px;
+            padding: 18px 22px;
+            margin-bottom: 28px;
+        }
+
+        .alert-title {
+            color: #b91c1c;
+            font-size: 16px;
+            font-weight: bold;
+        }
+
+        .alert p {
+            margin: 8px 0 0;
+            color: #7f1d1d;
+            font-size: 14px;
+            line-height: 1.7;
+        }
+
+        /* 异常事件表格 */
+        .table-card {
+            background: white;
+            border: 1px solid #e7edf5;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 3px 12px rgba(15, 23, 42, 0.05);
+        }
+
+        .table-heading {
+            padding: 22px 24px;
+            border-bottom: 1px solid #e7edf5;
+        }
+
+        .table-heading h2 {
+            margin: 0;
+            font-size: 18px;
+        }
+
+        .table-heading p {
+            margin: 8px 0 0;
+            color: #64748b;
+            font-size: 13px;
+        }
+
+        .table-wrapper {
+            overflow-x: auto;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            text-align: left;
+        }
+
+        th, td {
+            padding: 16px 24px;
+            border-bottom: 1px solid #edf1f7;
+            white-space: nowrap;
+        }
+
+        th {
+            background: #f8fafc;
+            color: #64748b;
+            font-size: 13px;
+            font-weight: normal;
+        }
+
+        td {
+            font-size: 14px;
+        }
+
+        .batch {
+            font-weight: bold;
+            color: #334155;
+        }
+
+        .status {
+            display: inline-block;
+            background: #fee2e2;
+            color: #b91c1c;
+            border-radius: 20px;
+            padding: 5px 10px;
+            font-size: 12px;
+        }
+
+        .footer {
+            text-align: center;
+            color: #94a3b8;
+            font-size: 12px;
+            padding: 28px 10px;
+        }
+
+        /* 让页面在窄屏幕上也能使用 */
+        @media (max-width: 700px) {
+            .header {
+                padding: 20px;
+                align-items: flex-start;
+                flex-direction: column;
+            }
+
+            .container {
+                padding: 0 14px;
+                margin-top: 20px;
+            }
+
+            .cards {
+                grid-template-columns: 1fr;
+                gap: 12px;
+            }
+
+            .card {
+                padding: 20px;
+            }
+        }
+
+        /* 异常统计卡片 */
+
+    .stats-grid {
+
+        display:grid;
+
+        grid-template-columns:repeat(4,1fr);
+
+        gap:16px;
+
+        margin:20px 0;
+
+    }
+
+
+    .stat-card {
+
+        background:white;
+
+        padding:20px;
+
+        border-radius:12px;
+
+        border:1px solid #e5e7eb;
+
+    }
+
+
+    .stat-card p {
+
+        color:#64748b;
+
+    }
+
+
+    .stat-card h2 {
+
+        font-size:30px;
+
+        margin:10px 0;
+
+    }
+        
+    </style>
+</head>
+
+<body>
+
+    <!-- 顶部标题 -->
+    <header class="header">
+        <div>
+            <h1>半导体设备 AI 诊断平台</h1>
+            <p>Equipment Intelligence & Anomaly Monitoring</p>
+        </div>
+
+        <span class="demo-tag">模拟数据 · 演示环境</span>
+    </header>
+
+    <main class="container">
+
+        <!-- 设备概览 -->
+        <h2 class="section-title">设备运行概览</h2>
+
+        <form method="get" action="/dashboard">
+
+    <label>
+        选择设备：
+    </label>
+
+
+    <select name="equipment_id">
+
+        {% for item in equipment_list %}
+
+        <option value="{{ item }}"
+        {% if item == data.equipment %}
+        selected
+        {% endif %}
+        >
+
+        {{ item }}
+
+        </option>
+
+        {% endfor %}
+
+    </select>
+
+
+    <button type="submit">
+        查询
+    </button>
+
+</form>
+
+        <section class="cards">
+
+            <div class="card">
+                <div class="card-label">设备编号</div>
+                <div class="card-value">{{ data.equipment }}</div>
+                <div class="card-note">当前分析设备</div>
+            </div>
+
+            <div class="card">
+                <div class="card-label">设备健康评分</div>
+                <div class="card-value score">
+                    {{ data.health_score }}<span style="font-size:16px;"> / 100</span>
+                </div>
+                <div class="card-note">基于当前演示规则计算</div>
+            </div>
+
+            <div class="card">
+                <div class="card-label">风险等级</div>
+                <div class="card-value risk">{{ data.risk_level }}</div>
+                <div class="card-note">建议进一步核查异常记录</div>
+            </div>
+
+        </section>
+
+        
+<!-- 风险提示 -->
+<section class="alert">
+    {% if data.risk_level == "高风险" %}
+        <div class="alert-title">⚠ 设备高风险提示</div>
+        <p>
+            当前设备健康评分较低，存在较高风险。
+            请结合异常批次、设备实际传感器数据、
+            工艺规范及现场检查结果进一步确认。
+            本页面使用模拟数据，不代表真实设备状态。
+        </p>
+    {% elif data.risk_level == "关注" %}
+        <div class="alert-title">⚠ 设备风险关注</div>
+        <p>
+            当前设备存在需要关注的风险。
+            建议持续监测健康评分，并结合现场情况进一步核查。
+            本页面使用模拟数据，不代表真实设备状态。
+        </p>
+    {% else %}
+        <div class="alert-title">✓ 设备状态提示</div>
+        <p>
+            当前健康评分对应的风险等级为正常，
+            暂无需要通过本提示强调的高风险状态。
+            本页面使用模拟数据，不代表真实设备状态。
+        </p>
+    {% endif %}
+</section>
+
+
+
+        <!-- 健康趋势图 -->
+
+        <section class="table-card">
+
+        <div class="table-heading">
+
+        <h2>
+        设备健康趋势
+        </h2>
+
+        <p>
+        最近五次检测评分变化
+        </p>
+
+        </div>
+
+
+        <div style="padding:20px">
+
+        <canvas id="healthChart"></canvas>
+
+        </div>
+
+
+        </section>
+
+        <!-- 异常事件 -->
+        <section class="table-card">
+
+            <div class="table-heading">
+                <h2>异常事件记录</h2>
+                <p>展示当前诊断报告解析出的异常批次</p>
+                        <!-- 新增：异常统计卡片 -->
+
+        <section class="stats-grid">
+
+            <div class="stat-card">
+                <p>异常总数</p>
+                <h2>{{ stats.total }}</h2>
+                <span>当前诊断报告</span>
+              </div>
+
+
+            <div class="stat-card">
+                <p>温度异常</p>
+                <h2>{{ stats.temperature }}</h2>
+                <span>条异常记录</span>
+            </div>
+
+
+            <div class="stat-card">
+                <p>压力异常</p>
+                <h2>{{ stats.pressure }}</h2>
+                <span>条异常记录</span>
+            </div>
+
+
+            <div class="stat-card">
+                <p>低良率异常</p>
+                <h2>{{ stats.yield }}</h2>
+                <span>条异常记录</span>
+            </div>
+
+        </section>
+            </div>
+
+            <div class="table-wrapper">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>批次编号</th>
+                            <th>异常类型</th>
+                            <th>检测数值</th>
+                            <th>状态</th>
+                        </tr>
+                    </thead>
+
+                    <tbody>
+                        {% for event in data.abnormal_events %}
+                        <tr>
+                            <td class="batch">{{ event.batch }}</td>
+                            <td>{{ event.type }}</td>
+                            <td>{{ event.value }}</td>
+                            <td><span class="status">待核查</span></td>
+                        </tr>
+                        {% else %}
+                        <tr>
+                            <td colspan="4">当前报告没有解析到异常事件</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+
+        </section>
+
+        <footer class="footer">
+            Semiconductor Equipment AI Diagnosis · Demo Version
+        </footer>
+
+    </main>
+
+
+    <script>
+
+        fetch(
+            "/health_history/{{data.equipment}}"
+        )
+
+        .then(
+            response => response.json()
+        )
+
+        .then(
+            result => {
+
+                const ctx =
+                document.getElementById(
+                    "healthChart"
+                );
+
+                new Chart(ctx, {
+
+                    type:"line",
+
+                    data:{
+
+                        labels:
+                        result.days,
+
+                        datasets:[{
+
+                            label:"健康评分",
+
+                            data:
+                            result.scores,
+
+                            tension:0.3
+
+                        }]
+
+                    },
+
+                    options:{
+
+                        responsive:true,
+
+                        scales:{
+
+                            y:{
+
+                                min:0,
+
+                                max:100
+
+                            }
+
+                        }
+
+                    }
+
+
+                });
+
+            }
+
+        );
+
+    </script>
+
+  
+<div>
+
+<h3>
+AI趋势分析
+</h3>
+
+<p>
+历史健康趋势：
+{{ trend.trend }}
+</p>
+
+<p>
+当前设备风险：
+{{ data.risk_level }}
+</p>
+
+<p>
+趋势判断等级：
+{{ trend.level }}
+</p>
+
+<p>
+分析说明：
+{{ trend.message }}
+</p>
+
+</div>
+
+
+
+
+</body>
+</html>
+
+

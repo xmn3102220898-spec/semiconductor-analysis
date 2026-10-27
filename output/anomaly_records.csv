@@ -1,0 +1,4 @@
+﻿batch_id,equipment_id,process,temperature_c,pressure_kpa,yield_pct,anomaly_reason
+BATCH-005,ETCH-02,Deposition,120.0,90.13,97.25,温度过高;
+BATCH-012,ETCH-02,Deposition,73.25,130.0,96.03,压力过高;
+BATCH-020,ETCH-02,Etching,89.95,92.77,75.0,良率过低;

@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>设备历史诊断记录</title>
+    <style>
+        body {
+            margin: 0;
+            background: #f3f6fb;
+            color: #172033;
+            font-family: "Microsoft YaHei", "Segoe UI", Arial, sans-serif;
+        }
+
+        .container {
+            max-width: 980px;
+            margin: 32px auto;
+            padding: 0 24px;
+        }
+
+        .panel {
+            background: white;
+            border: 1px solid #e4eaf2;
+            border-radius: 14px;
+            padding: 24px;
+            box-shadow: 0 8px 24px rgba(15, 23, 42, 0.05);
+        }
+
+        h1 {
+            margin: 0 0 8px;
+            font-size: 22px;
+        }
+
+        .muted {
+            color: #64748b;
+            font-size: 13px;
+        }
+
+        .toolbar {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin: 20px 0;
+        }
+
+        select,
+        button,
+        .back {
+            min-height: 38px;
+            border-radius: 8px;
+            font: inherit;
+            font-size: 13px;
+        }
+
+        select {
+            padding: 0 30px 0 10px;
+            border: 1px solid #cbd5e1;
+            background: white;
+        }
+
+        button {
+            padding: 0 15px;
+            border: 0;
+            background: #2563eb;
+            color: white;
+            cursor: pointer;
+        }
+
+        .back {
+            display: inline-flex;
+            align-items: center;
+            padding: 0 13px;
+            border: 1px solid #bfdbfe;
+            color: #2563eb;
+            text-decoration: none;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        th,
+        td {
+            padding: 13px 12px;
+            border-bottom: 1px solid #edf1f7;
+            text-align: left;
+            font-size: 13px;
+        }
+
+        th {
+            color: #64748b;
+            background: #f8fafc;
+            font-weight: 500;
+        }
+
+        a {
+            color: #2563eb;
+        }
+    </style>
+</head>
+<body>
+    <main class="container">
+        <section class="panel">
+            <h1>设备历史诊断记录</h1>
+            <div class="muted">选择设备后可查看对应的有效诊断记录。</div>
+
+            <form class="toolbar" method="get" action="/history">
+                <select
+                    name="equipment_id"
+                    onchange="this.form.submit()"
+                >
+                    {% for item in equipment_list %}
+                    <option
+                        value="{{ item }}"
+                        {% if item == selected_equipment %}selected{% endif %}
+                    >{{ item }}</option>
+                    {% endfor %}
+                </select>
+                <button type="submit">查询</button>
+                <a
+                    class="back"
+                    href="/dashboard?equipment_id={{ selected_equipment | urlencode }}"
+                >返回仪表盘</a>
+            </form>
+
+            <table>
+                <thead>
+                    <tr>
+                        <th>设备</th>
+                        <th>健康评分</th>
+                        <th>风险等级</th>
+                        <th>时间</th>
+                        <th>操作</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for item in records %}
+                    <tr>
+                        <td>{{ item.equipment }}</td>
+                        <td>{{ item.score }}</td>
+                        <td>{{ item.risk }}</td>
+                        <td>{{ item.time }}</td>
+                        <td>
+                            <a href="/diagnosis_detail/{{ item.id }}">查看详情</a>
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="5" class="muted">暂无有效诊断记录</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </section>
+    </main>
+</body>
+</html>

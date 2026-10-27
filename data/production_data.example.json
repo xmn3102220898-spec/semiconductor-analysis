@@ -1,0 +1,28 @@
+{
+  "records": [
+    {
+      "batch_id": "DEMO-JSON-001",
+      "equipment_id": "ETCH-DEMO-01",
+      "process": "Etching",
+      "temperature_c": 82.5,
+      "pressure_kpa": 101.2,
+      "yield_pct": 96.3
+    },
+    {
+      "batch_id": "DEMO-JSON-002",
+      "equipment_id": "ETCH-DEMO-01",
+      "process": "Etching",
+      "temperature_c": 120.0,
+      "pressure_kpa": 98.4,
+      "yield_pct": 94.1
+    },
+    {
+      "batch_id": "DEMO-JSON-003",
+      "equipment_id": "ETCH-DEMO-02",
+      "process": "Deposition",
+      "temperature_c": 78.2,
+      "pressure_kpa": 108.3,
+      "yield_pct": 95.8
+    }
+  ]
+}

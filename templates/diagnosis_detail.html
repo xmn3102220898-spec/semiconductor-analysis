@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>设备诊断详情</title>
+    <style>
+        body {
+            margin: 0;
+            background: #f3f6fb;
+            color: #172033;
+            font-family: "Microsoft YaHei", "Segoe UI", Arial, sans-serif;
+        }
+
+        .container {
+            max-width: 980px;
+            margin: 32px auto;
+            padding: 0 24px;
+        }
+
+        .panel {
+            background: white;
+            border: 1px solid #e4eaf2;
+            border-radius: 14px;
+            padding: 26px;
+            box-shadow: 0 8px 24px rgba(15, 23, 42, 0.05);
+        }
+
+        h1 {
+            margin: 0 0 18px;
+            font-size: 22px;
+        }
+
+        .facts {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px 24px;
+            color: #475569;
+            font-size: 13px;
+            margin-bottom: 20px;
+        }
+
+        pre {
+            margin: 0;
+            padding: 20px;
+            background: #0f172a;
+            color: #dbe7f7;
+            border-radius: 10px;
+            white-space: pre-wrap;
+            word-break: break-word;
+            font-family: "Cascadia Code", Consolas, monospace;
+            font-size: 12px;
+            line-height: 1.75;
+        }
+
+        .back {
+            display: inline-block;
+            margin-bottom: 16px;
+            color: #2563eb;
+            text-decoration: none;
+            font-size: 13px;
+        }
+    </style>
+</head>
+<body>
+    <main class="container">
+        <section class="panel">
+            <a class="back" href="javascript:history.back()">返回上一页</a>
+            <h1>AI 设备诊断详情</h1>
+
+            <div class="facts">
+                <span>设备：{{ detail.equipment }}</span>
+                <span>健康评分：{{ detail.health_score }}</span>
+                <span>风险等级：{{ detail.risk_level }}</span>
+                <span>时间：{{ detail.time }}</span>
+            </div>
+
+            <pre>{{ report }}</pre>
+        </section>
+    </main>
+</body>
+</html>
