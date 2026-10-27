@@ -3,7 +3,7 @@
 ## 启动
 
 ```powershell
-python -m pip install -r requirements.txt
+python -m pip install -r requirements-dev.txt
 python -m uvicorn main_api:app --reload
 ```
 
@@ -21,6 +21,9 @@ app/
 ├── analysis/     异常规则、健康评分与趋势
 ├── rag/          知识读取与语义检索
 └── llm/          大模型报告适配
+scripts/
+├── learn/        SQL、Embedding、RAG 学习稿
+└── tools/        报表、图表、数据库检查工具
 ```
 
 `main_api.py` 和根目录同名模块暂时作为兼容入口，现有 URL 和 import
@@ -32,9 +35,33 @@ Linux 启动：
 ```bash
 python3 -m venv .venv
 source .venv/bin/activate
-python -m pip install -r requirements.txt
+python -m pip install -r requirements-dev.txt
 python -m uvicorn main_api:app --host 0.0.0.0 --port 8000
 ```
+
+使用 Make：
+
+```bash
+make install
+make run
+make check
+```
+
+Windows 未安装 `make` 时使用等价入口：
+
+```powershell
+python -m pip install -r requirements-dev.txt
+python scripts/dev.py check
+python scripts/dev.py run
+```
+
+使用 Docker：
+
+```bash
+docker compose up --build
+```
+
+生产数据库、诊断历史、输出和模型缓存使用持久化卷，避免容器重建后丢失。
 
 ## 当前数据链路
 
@@ -80,9 +107,21 @@ API 成功时仍返回原有业务字段。错误响应保留 `detail`，同时�
 ## 测试
 
 ```powershell
-python -X utf8 -m unittest discover -s tests -v
-python -X utf8 sql_practice.py
+make test
+make lint
+python -m scripts.learn.sql_practice
 ```
+
+`make test` 使用标准库 `trace` 输出行覆盖率，并对 `app/analysis`
+执行 80% 硬阈值。当前环境无法下载 coverage.py，因此外部覆盖率工具
+不是本地门禁的前提。
+
+当前可复现基线：
+
+- 测试：28 项，全部通过。
+- 核心分析行覆盖率：84.76%。
+- 模拟数据：3 台设备、30 个生产批次。
+- 基准命令：`make bench` 或 `python scripts/dev.py bench`。
 
 ## 学习与项目文档
 

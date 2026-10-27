@@ -1,4 +1,6 @@
 
+"""Generate static PNG charts from the external production data."""
+
 import pandas as pd
 import matplotlib.pyplot as plt
 

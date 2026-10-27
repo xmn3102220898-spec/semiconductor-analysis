@@ -8,12 +8,12 @@ from __future__ import annotations
 
 from typing import Any, Sequence
 
-from anomaly_analysis import (
+from app.analysis.anomalies import (
     PRESSURE_LIMIT,
     TEMPERATURE_LIMIT,
     YIELD_LIMIT,
 )
-from database_query import execute_query
+from app.data.query import execute_query
 
 
 QUERIES: list[dict[str, Any]] = [

@@ -8,6 +8,12 @@ venv/
 
 .pytest_cache/
 .coverage
+htmlcov/
+build/
+dist/
+*.log
+*.out
+*.err
 
 *.db
 *.db-journal

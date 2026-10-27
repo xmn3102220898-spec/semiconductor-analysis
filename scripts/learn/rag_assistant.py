@@ -1,18 +1,12 @@
-from pathlib import Path
-
 import numpy as np
 
 from sentence_transformers import SentenceTransformer
 
 from openai import OpenAI
 
-from dotenv import load_dotenv
-
-import os
-
-from database_query import query_equipment_data
-
-from anomaly_analysis import format_anomaly_result
+from app.analysis.anomalies import format_anomaly_result
+from app.config import settings
+from app.data.query import query_equipment_data
 
 
 # =====================================
@@ -20,23 +14,19 @@ from anomaly_analysis import format_anomaly_result
 # =====================================
 
 
-load_dotenv() # 读取.env的key
+_client = None
 
 
-API_KEY = os.getenv(    #获取APIkey
-    "DEEPSEEK_API_KEY"
-)
-
-
-# 创建DeepSeek客户端
-
-client = OpenAI( 
-
-    api_key=API_KEY,
-
-    base_url="https://api.deepseek.com"
-
-)
+def _get_client():
+    global _client
+    if _client is None:
+        if not settings.deepseek_api_key:
+            raise RuntimeError("未配置 DEEPSEEK_API_KEY")
+        _client = OpenAI(
+            api_key=settings.deepseek_api_key,
+            base_url=settings.deepseek_base_url,
+        )
+    return _client
 
 
 
@@ -45,14 +35,12 @@ client = OpenAI(
 # =====================================
 
 
-BASE_DIR = Path(__file__).resolve().parent
+BASE_DIR = settings.project_root
 
 
 KNOWLEDGE_DIR = (
 
-    BASE_DIR
-
-    / "knowledge_base"
+    settings.knowledge_dir
 
 )
 
@@ -424,10 +412,10 @@ def build_prompt(
 def ask_deepseek(prompt):
 
 
-    response = client.chat.completions.create(
+    response = _get_client().chat.completions.create(
 
 
-        model="deepseek-chat",
+        model=settings.deepseek_model,
 
 
         messages=[
@@ -463,7 +451,7 @@ def ask_deepseek(prompt):
         ],
 
 
-        temperature=0.2
+        temperature=settings.llm_temperature
 
     )
 
@@ -499,11 +487,7 @@ def main():
     )
 
 
-    model = SentenceTransformer(
-
-        "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
-
-    )
+    model = SentenceTransformer(settings.embedding_model)
 
 
 

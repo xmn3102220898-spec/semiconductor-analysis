@@ -1,11 +1,11 @@
 import sqlite3
 from datetime import datetime
 
+from app.config import settings
+
 
 # 连接数据库
-conn = sqlite3.connect(
-    "diagnosis_history.db"
-)
+conn = sqlite3.connect(settings.diagnosis_db)
 
 cursor = conn.cursor()
 

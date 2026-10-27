@@ -1,0 +1,14 @@
+.git
+.github
+.venv
+venv
+__pycache__
+*.py[cod]
+*.db
+*.db-journal
+.env
+output/*
+docs/*
+tests/*
+scripts/*
+README.md

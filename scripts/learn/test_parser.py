@@ -1,4 +1,4 @@
-from report_parser import parse_report
+from scripts.learn.report_parser import parse_report
 
 
 text = """

@@ -1,4 +1,4 @@
-from database_query import query_equipment_data
+from app.data.query import query_equipment_data
 
 
 

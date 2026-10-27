@@ -1,4 +1,4 @@
-from trend_analysis import analyze_health_trend
+from app.analysis.trend import analyze_health_trend
 
 
 scores = [

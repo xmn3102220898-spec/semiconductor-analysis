@@ -1,3 +1,5 @@
+"""Interactive Pandas/SQL analysis report."""
+
 import sqlite3
 
 import pandas as pd
@@ -13,7 +15,7 @@ from app.data.manager import ensure_production_data_current
 
 
 # ==================================
-# 1. 路径设置
+# 1. 设置数据库路径
 # ==================================
 
 
@@ -23,12 +25,9 @@ BASE_DIR = settings.project_root
 DB_FILE = settings.production_db
 
 
-OUTPUT_FILE = settings.output_dir / "production_analysis_report.xlsx"
-
-
 
 # ==================================
-# 2. 读取数据库
+# 2. 从数据库读取生产数据
 # ==================================
 
 
@@ -36,13 +35,18 @@ def load_data():
 
     """
     从SQLite读取生产数据
-    返回DataFrame
+    返回Pandas DataFrame
     """
 
 
     ensure_production_data_current()
+
+    # 创建数据库连接
     conn = sqlite3.connect(DB_FILE)
 
+
+
+    # SQL查询
 
     sql = """
 
@@ -53,13 +57,20 @@ def load_data():
     """
 
 
+
+    # Pandas直接读取SQL结果
+
     df = pd.read_sql(
         sql,
         conn
     )
 
 
+
+    # 关闭连接
+
     conn.close()
+
 
 
     return df
@@ -67,28 +78,32 @@ def load_data():
 
 
 # ==================================
-# 3. 设备统计
+# 3. 设备统计分析
 # ==================================
 
 
-def equipment_summary(df):
+def equipment_analysis(df):
+
+    """
+    按设备统计平均指标
+    """
 
 
     summary = (
 
         df
 
-        .groupby("equipment_id")
+        .groupby("equipment_id")   # 举例： 找到所有ETCH-01 计算平均值
 
         [
 
             [
 
-            "temperature_c",
+                "temperature_c",
 
-            "pressure_kpa",
+                "pressure_kpa",
 
-            "yield_pct"
+                "yield_pct"
 
             ]
 
@@ -106,11 +121,11 @@ def equipment_summary(df):
 
 
 # ==================================
-# 4. 异常记录
+# 4. 异常批次分析
 # ==================================
 
 
-def anomaly_records(df):
+def anomaly_analysis(df):
 
 
     anomalies = df[
@@ -132,12 +147,17 @@ def anomaly_records(df):
 
 
 
-# ==================================
-# 5. 异常设备排名
-# ==================================
+#==================================
+# 5.  统计异常设备数量
+#==================================
 
 
-def anomaly_equipment_rank(anomalies):
+
+def anomaly_equipment_analysis(anomalies):
+
+    """
+    统计异常设备数量
+    """
 
 
     result = (
@@ -146,12 +166,9 @@ def anomaly_equipment_rank(anomalies):
 
         .groupby("equipment_id")
 
-        .size()
+        .size()  # 统计数量
 
-        .reset_index(name="anomaly_count")
-        #把索引变回普通列
-        .sort_values(
-            "anomaly_count",
+        .sort_values(  # 降序排序
             ascending=False
         )
 
@@ -163,93 +180,75 @@ def anomaly_equipment_rank(anomalies):
 
 
 # ==================================
-# 6. 生成Excel报告
+# 5. 输出报告
 # ==================================
 
 
-def generate_excel_report():
+def main():
 
 
-    # 获取数据
+    # 读取数据库
 
     df = load_data()
 
 
 
-    # 分析
-
-    summary = equipment_summary(df)
-
-    anomalies = anomaly_records(df)
-
-    rank = anomaly_equipment_rank(anomalies)
-
-
-
-    # 创建Excel
-
-    with pd.ExcelWriter(   #ExcelWriter Excel文件编辑器
-        OUTPUT_FILE,       #需要三个Sheet
-        engine="openpyxl"
-    ) as writer:
-
-
-
-        # Sheet1
-
-        summary.to_excel(
-
-            writer,
-
-            sheet_name="设备统计"
-
-        )
-
-
-
-        # Sheet2
-
-        anomalies.to_excel(
-
-            writer,
-
-            sheet_name="异常记录",
-
-            index=False
-
-        )
-
-
-
-        # Sheet3
-
-        rank.to_excel(
-
-            writer,
-
-            sheet_name="异常设备排名",
-
-            index=False
-
-        )
-
-
     print(
-        "Excel报告生成成功！"
+        "\n==========数据读取完成=========="
     )
 
+
     print(
-        OUTPUT_FILE
+        f"生产记录数量：{len(df)}"
     )
 
 
 
-# ==================================
-# 7. 主程序
-# ==================================
+    # 设备分析
+
+    summary = equipment_analysis(df)
+
+
+    print(
+
+        "\n==========设备统计=========="
+
+    )
+
+
+    print(summary)
+
+
+
+    # 异常分析
+
+    anomalies = anomaly_analysis(df)
+
+
+    print(
+
+        "\n==========异常记录=========="
+
+    )
+
+
+    print(anomalies)
+
+
+    # 异常设备统计
+
+    anomaly_count = anomaly_equipment_analysis(anomalies)
+
+
+    print(
+        "\n==========异常设备统计=========="
+    )
+
+
+    print(anomaly_count)
+
 
 
 if __name__ == "__main__":
 
-
-    generate_excel_report()
+    main()

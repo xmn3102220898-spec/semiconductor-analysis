@@ -31,8 +31,8 @@ RAG 从第 7 周开始。第 1～6 周的目标不是“把所有知识学完”
 | 周次 | 学习主题 | 项目任务 | 验收结果 |
 |---|---|---|---|
 | 第 1 周 | Python 数据结构、文件、异常处理 | 阅读 `production_source.py` | 能解释 CSV/JSON 如何转成统一字典 |
-| 第 2 周 | SQL、表、聚合、JOIN/CTE | 运行 `sql_practice.py` | 能写出设备和异常统计 SQL |
-| 第 3 周 | Pandas、分组、缺失值、描述统计 | 运行 `main.py` | 能解释 `groupby` 和异常筛选 |
+| 第 2 周 | SQL、表、聚合、JOIN/CTE | 运行 `scripts/learn/sql_practice.py` | 能写出设备和异常统计 SQL |
+| 第 3 周 | Pandas、分组、缺失值、描述统计 | 运行 `scripts/tools/analyze_production.py` | 能解释 `groupby` 和异常筛选 |
 | 第 4 周 | HTTP、FastAPI、请求校验、JSON | 调用新增的 `/api/*` 接口 | 能用 `/docs` 测试接口 |
 | 第 5 周 | SQLite、事务、数据质量、测试 | 修改一份外部 CSV | 文件变化后页面自动更新，测试通过 |
 | 第 6 周 | 半导体业务、MES、SPC、Git、Linux | 完成发布前检查 | 能在 Linux 命令下启动并解释项目边界 |
@@ -45,10 +45,11 @@ RAG 从第 7 周开始。第 1～6 周的目标不是“把所有知识学完”
 在项目目录执行：
 
 ```powershell
-python -m pip install -r requirements.txt
-python -X utf8 -m unittest discover -s tests -v
-python -X utf8 main.py
-python -X utf8 sql_practice.py
+python -m pip install -r requirements-dev.txt
+make lint
+make test
+python -m scripts.tools.analyze_production
+python -m scripts.learn.sql_practice
 python -m uvicorn main_api:app --reload
 ```
 
@@ -64,8 +65,8 @@ Linux 环境：
 ```bash
 python3 -m venv .venv
 source .venv/bin/activate
-python -m pip install -r requirements.txt
-python -m uvicorn main_api:app --host 0.0.0.0 --port 8000
+python -m pip install -r requirements-dev.txt
+make run
 ```
 
 ## 4. 第 1 周：Python 与外部数据
@@ -116,7 +117,7 @@ python -m uvicorn main_api:app --reload
 运行：
 
 ```powershell
-python -X utf8 sql_practice.py
+python -m scripts.learn.sql_practice
 ```
 
 重点理解：
@@ -128,7 +129,7 @@ python -X utf8 sql_practice.py
 
 ### 自己增加一个查询
 
-在 `sql_practice.py` 的 `QUERIES` 中增加“每个工艺的平均温度”，然后运行
+在 `scripts/learn/sql_practice.py` 的 `QUERIES` 中增加“每个工艺的平均温度”，然后运行
 脚本验证。参考 SQL：
 
 ```sql
@@ -161,13 +162,13 @@ ORDER BY process;
 运行：
 
 ```powershell
-python -X utf8 main.py
+python -m scripts.tools.analyze_production
 ```
 
 观察 `groupby("equipment_id")["yield_pct"].mean()` 如何把 30 条批次记录
 变成三台设备的平均良率。
 
-然后修改 `main.py`，增加按工艺统计平均温度：
+然后修改 `scripts/tools/analyze_production.py`，增加按工艺统计平均温度：
 
 ```python
 process_summary = (
@@ -231,8 +232,11 @@ curl -s http://127.0.0.1:8000/api/equipment/ETCH-02/analysis
 运行：
 
 ```powershell
-python -X utf8 -m unittest discover -s tests -v
+make test
+make lint
 ```
+
+当前基线为 28 项测试，核心分析行覆盖率为 84.76%。
 
 测试覆盖了：
 

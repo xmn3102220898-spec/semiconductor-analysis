@@ -1,5 +1,5 @@
-from anomaly_analysis import analyze_equipment
-from health_score import (
+from app.analysis.anomalies import analyze_equipment
+from app.analysis.health import (
     calculate_health_score,
     risk_level_from_score,
 )

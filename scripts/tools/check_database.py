@@ -1,3 +1,5 @@
+"""Print schema and row counts for the production database."""
+
 import sqlite3
 
 from app.config import settings

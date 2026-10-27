@@ -1,0 +1,24 @@
+services:
+  app:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      APP_ENV: production
+      LOG_LEVEL: INFO
+      PRODUCTION_DATA_FILE: /app/data/production_data.csv
+      PRODUCTION_DB_FILE: /app/storage/production.db
+      DIAGNOSIS_DB_FILE: /app/storage/diagnosis_history.db
+      OUTPUT_DIR: /app/output
+      HF_HOME: /app/model-cache
+      DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-}
+    volumes:
+      - app-storage:/app/storage
+      - app-output:/app/output
+      - app-model-cache:/app/model-cache
+    restart: unless-stopped
+
+volumes:
+  app-storage:
+  app-output:
+  app-model-cache:

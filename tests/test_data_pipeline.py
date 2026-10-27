@@ -9,9 +9,14 @@ from contextlib import closing
 from pathlib import Path
 from unittest.mock import patch
 
-from anomaly_analysis import build_equipment_analysis
+from anomaly_analysis import (
+    build_equipment_analysis,
+    calculate_risk,
+    format_anomaly_result,
+)
 from database_manager import sync_production_data
 from health_score import (
+    calculate_batch_health_trend,
     calculate_health_score_from_anomalies,
     risk_level_from_score,
 )
@@ -258,6 +263,86 @@ class AnalysisTests(unittest.TestCase):
 
         self.assertEqual(trend["trend"], "持续下降")
         self.assertEqual(trend["level"], "高风险")
+
+    def test_health_score_and_risk_boundaries(self) -> None:
+        anomalies = [
+            {"batch_id": "B-1", "type": "温度异常"},
+            {"batch_id": "B-2", "type": "压力异常"},
+            {"batch_id": "B-3", "type": "低良率异常"},
+        ]
+
+        self.assertEqual(
+            calculate_health_score_from_anomalies(anomalies),
+            45,
+        )
+        self.assertEqual(
+            calculate_health_score_from_anomalies(
+                [{"type": "未知异常"}]
+            ),
+            100,
+        )
+        self.assertEqual(
+            calculate_health_score_from_anomalies(
+                [{"type": "低良率异常"}] * 4
+            ),
+            0,
+        )
+        self.assertEqual(risk_level_from_score(80), "正常")
+        self.assertEqual(risk_level_from_score(60), "关注")
+        self.assertEqual(risk_level_from_score(59), "高风险")
+
+    def test_batch_trend_applies_penalties_in_order(self) -> None:
+        records = [
+            (1, "B-001", "ETCH-X", "Etching", 80, 100, 95),
+            (2, "B-002", "ETCH-X", "Etching", 120, 100, 95),
+            (3, "B-003", "ETCH-X", "Etching", 80, 130, 80),
+        ]
+        anomalies = [
+            {"batch_id": "B-002", "type": "温度异常"},
+            {"batch_id": "B-003", "type": "压力异常"},
+            {"batch_id": "B-003", "type": "低良率异常"},
+        ]
+
+        points = calculate_batch_health_trend(records, anomalies)
+
+        self.assertEqual(
+            [point["score"] for point in points],
+            [100, 85, 45],
+        )
+        self.assertEqual(
+            [point["penalty"] for point in points],
+            [0, 15, 40],
+        )
+
+    def test_risk_and_anomaly_text_helpers(self) -> None:
+        score, level = calculate_risk(
+            [
+                {"type": "低良率异常"},
+                {"type": "温度异常"},
+            ]
+        )
+
+        self.assertEqual(score, 80)
+        self.assertEqual(level, "高风险")
+        self.assertIn("ETCH-02", format_anomaly_result("ETCH-02"))
+
+    def test_all_trend_branches(self) -> None:
+        self.assertEqual(
+            analyze_health_trend([70, 70])["level"],
+            "关注",
+        )
+        self.assertEqual(
+            analyze_health_trend([80, 90])["trend"],
+            "回升",
+        )
+        self.assertEqual(
+            analyze_health_trend(["bad", 90])["trend"],
+            "数据不足",
+        )
+        self.assertEqual(
+            analyze_health_trend([101, 90])["trend"],
+            "数据不足",
+        )
 
 
 class DashboardTests(unittest.TestCase):

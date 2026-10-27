@@ -1,5 +1,5 @@
 
-from pathlib import Path
+from app.config import settings
 
 
 # ==========================================
@@ -8,10 +8,10 @@ from pathlib import Path
 
 # __file__ 表示当前 Python 文件的路径
 # parent 表示当前文件所在的文件夹
-BASE_DIR = Path(__file__).resolve().parent
+BASE_DIR = settings.project_root
 
 # 知识库文件夹的完整路径
-KNOWLEDGE_DIR = BASE_DIR / "knowledge_base"
+KNOWLEDGE_DIR = settings.knowledge_dir
 
 
 # ==========================================

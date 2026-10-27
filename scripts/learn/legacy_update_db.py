@@ -1,3 +1,5 @@
+"""Legacy schema experiment; do not run against a production database."""
+
 import sqlite3
 
 

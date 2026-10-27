@@ -3,6 +3,8 @@ from sentence_transformers import SentenceTransformer
 #加载已经训练好的文本向量模型
 from sklearn.metrics.pairwise import cosine_similarity
 
+from app.config import settings
+
 
 # ==========================================
 # 1. 准备测试文本
@@ -22,9 +24,7 @@ sentences = [
 
 # 首次运行可能需要下载模型
 # paraphrase-multilingual-MiniLM-L12-v2 支持多语言文本
-model = SentenceTransformer(
-    "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
-)
+model = SentenceTransformer(settings.embedding_model)
 
 
 # ==========================================

@@ -1,4 +1,6 @@
 
+"""Legacy parser for free-text LLM reports."""
+
 import re
 
 
