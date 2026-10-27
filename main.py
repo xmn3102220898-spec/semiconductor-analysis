@@ -1,36 +1,36 @@
 
-from pathlib import Path
 import argparse
 import random
 
 import pandas as pd
 
-from anomaly_analysis import (
+from app.analysis.anomalies import (
     PRESSURE_LIMIT,
     TEMPERATURE_LIMIT,
     YIELD_LIMIT,
 )
-from production_source import load_production_records
+from app.config import settings
+from app.data.source import load_production_records
 
 
 # ==========================
 # 1. 设置项目目录
 # ==========================
 
-BASE_DIR = Path(__file__).resolve().parent
+BASE_DIR = settings.project_root
 #__file__：当前 Python 文件的位置。
 #.resolve().parent：取得当前文件所在的目录。
 
-DATA_DIR = BASE_DIR / "data"
+DATA_DIR = settings.data_file.parent
 #/ "data"：拼接出 data 子目录的路径
-OUTPUT_DIR = BASE_DIR / "output"
+OUTPUT_DIR = settings.output_dir
 
 # 如果文件夹不存在，就自动创建
 DATA_DIR.mkdir(exist_ok=True)
 #mkdir(exist_ok=True)：目录不存在时创建，存在时也不会因为重复创建而报错。
 OUTPUT_DIR.mkdir(exist_ok=True)
 
-DATA_FILE = DATA_DIR / "production_data.csv"
+DATA_FILE = settings.data_file
 
 
 # ==========================

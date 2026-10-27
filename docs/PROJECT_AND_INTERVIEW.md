@@ -51,6 +51,10 @@ data_source_meta
   source_path, signature, record_count, synced_at
 ```
 
+生产代码位于 `app/data`、`app/analysis`、`app/api`、`app/rag` 和
+`app/llm`。根目录同名模块只用于兼容旧 import，具体实现应从 `app/`
+目录阅读。
+
 ## 3. 关键设计决定
 
 ### 外部文件是数据源，SQLite 是查询缓存

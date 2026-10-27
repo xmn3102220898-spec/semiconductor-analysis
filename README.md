@@ -12,6 +12,21 @@ python -m uvicorn main_api:app --reload
 - 仪表盘：`http://127.0.0.1:8000/dashboard`
 - API 文档：`http://127.0.0.1:8000/docs`
 
+## 工程结构
+
+```text
+app/
+├── api/          FastAPI 应用与路由
+├── data/         外部数据、SQLite 同步、查询与诊断历史
+├── analysis/     异常规则、健康评分与趋势
+├── rag/          知识读取与语义检索
+└── llm/          大模型报告适配
+```
+
+`main_api.py` 和根目录同名模块暂时作为兼容入口，现有 URL 和 import
+保持不变。配置集中在 `app/config.py`，运行日志为 JSON 格式并携带
+`request_id`。
+
 Linux 启动：
 
 ```bash
@@ -46,6 +61,21 @@ python -m uvicorn main_api:app --host 0.0.0.0 --port 8000
 | `GET /health_history/{equipment_id}` | 趋势图数据与趋势结论 |
 | `GET /diagnose/{equipment_id}` | 调用大模型生成并保存诊断报告 |
 | `GET /history` | 历史诊断记录 |
+
+API 成功时仍返回原有业务字段。错误响应保留 `detail`，同时增加：
+
+```json
+{
+  "detail": "未找到设备：NOT-FOUND",
+  "error": {
+    "code": "NOT_FOUND",
+    "message": "未找到设备：NOT-FOUND",
+    "request_id": "..."
+  }
+}
+```
+
+客户端可发送 `X-Request-ID`；未发送时服务自动生成并回传。
 
 ## 测试
 

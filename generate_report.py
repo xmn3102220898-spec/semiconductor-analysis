@@ -1,14 +1,14 @@
 import sqlite3
-from pathlib import Path
 
 import pandas as pd
 
-from anomaly_analysis import (
+from app.analysis.anomalies import (
     PRESSURE_LIMIT,
     TEMPERATURE_LIMIT,
     YIELD_LIMIT,
 )
-from database_manager import ensure_production_data_current
+from app.config import settings
+from app.data.manager import ensure_production_data_current
 
 
 
@@ -17,21 +17,13 @@ from database_manager import ensure_production_data_current
 # ==================================
 
 
-BASE_DIR = Path(__file__).resolve().parent
+BASE_DIR = settings.project_root
 
 
-DB_FILE = (
-    BASE_DIR
-    / "database"
-    / "production.db"
-)
+DB_FILE = settings.production_db
 
 
-OUTPUT_FILE = (
-    BASE_DIR
-    / "output"
-    / "production_analysis_report.xlsx"
-)
+OUTPUT_FILE = settings.output_dir / "production_analysis_report.xlsx"
 
 
 

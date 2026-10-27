@@ -7,6 +7,7 @@ import tempfile
 import unittest
 from contextlib import closing
 from pathlib import Path
+from unittest.mock import patch
 
 from anomaly_analysis import build_equipment_analysis
 from database_manager import sync_production_data
@@ -144,7 +145,13 @@ class ProductionSourceTests(unittest.TestCase):
             )
             sync_production_data(data_file, database_file, force=True)
 
-            unchanged = sync_production_data(data_file, database_file)
+            with patch(
+                "app.data.manager.load_production_records",
+                side_effect=AssertionError(
+                    "unchanged data must not be parsed again"
+                ),
+            ):
+                unchanged = sync_production_data(data_file, database_file)
 
             data_file.write_text(
                 json.dumps([first_batch, second_batch]),
@@ -301,10 +308,17 @@ class DashboardTests(unittest.TestCase):
         self.assertEqual(response.headers["location"], "/dashboard")
 
     def test_health_check(self) -> None:
-        response = self.client.get("/healthz")
+        response = self.client.get(
+            "/healthz",
+            headers={"X-Request-ID": "p1a-request-id"},
+        )
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json(), {"status": "ok"})
+        self.assertEqual(
+            response.headers["X-Request-ID"],
+            "p1a-request-id",
+        )
 
     def test_equipment_api_returns_all_devices(self) -> None:
         response = self.client.get("/api/equipment")
@@ -395,11 +409,13 @@ class DashboardTests(unittest.TestCase):
                 self.assertEqual(payload["trend"]["level"], "正常")
 
     def test_dashboard_does_not_call_llm(self) -> None:
-        import main_api
+        import app.api.main as api_module
 
-        original = main_api.generate_report
-        main_api.generate_report = lambda _: (_ for _ in ()).throw(
-            AssertionError("dashboard must not call the LLM")
+        original = api_module.llm_reporter.generate_report
+        api_module.llm_reporter.generate_report = (
+            lambda _: (_ for _ in ()).throw(
+                AssertionError("dashboard must not call the LLM")
+            )
         )
 
         try:
@@ -408,7 +424,7 @@ class DashboardTests(unittest.TestCase):
                 params={"equipment_id": "ETCH-03"},
             )
         finally:
-            main_api.generate_report = original
+            api_module.llm_reporter.generate_report = original
 
         self.assertEqual(response.status_code, 200)
         self.assertIn("ETCH-03", response.text)
@@ -417,6 +433,18 @@ class DashboardTests(unittest.TestCase):
         response = self.client.get("/health/NOT-FOUND")
 
         self.assertEqual(response.status_code, 404)
+        payload = response.json()
+        self.assertIn("detail", payload)
+        self.assertEqual(payload["error"]["code"], "NOT_FOUND")
+        self.assertTrue(payload["error"]["request_id"])
+
+    def test_invalid_path_parameter_returns_structured_422(self) -> None:
+        response = self.client.get("/diagnosis_detail/not-an-integer")
+
+        self.assertEqual(response.status_code, 422)
+        payload = response.json()
+        self.assertEqual(payload["error"]["code"], "VALIDATION_ERROR")
+        self.assertIn("detail", payload)
 
     def test_invalid_dashboard_selection_falls_back_to_first(self) -> None:
         response = self.client.get(

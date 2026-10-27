@@ -35,8 +35,6 @@ def format_equipment_data(equipment_id):
 
         batch_id = row[1]
 
-        equipment = row[2]
-
         process = row[3]
 
         temperature = row[4]

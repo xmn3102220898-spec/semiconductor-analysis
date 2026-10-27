@@ -1,10 +1,10 @@
 
-from pathlib import Path  #Path路径工具,找到 CSV 和图片所在位置
 import pandas as pd
 import matplotlib.pyplot as plt
 
-from anomaly_analysis import TEMPERATURE_LIMIT
-from production_source import load_production_records
+from app.analysis.anomalies import TEMPERATURE_LIMIT
+from app.config import settings
+from app.data.source import load_production_records
 # matplotlib.pyplot 绘图接口，用来画柱状图和折线图
 
 # ======================================
@@ -12,10 +12,10 @@ from production_source import load_production_records
 # ======================================
 
 # __file__ 表示当前 visualization.py 文件的位置
-BASE_DIR = Path(__file__).resolve().parent
+BASE_DIR = settings.project_root
 
-DATA_FILE = BASE_DIR / "data" / "production_data.csv"
-OUTPUT_DIR = BASE_DIR / "output"
+DATA_FILE = settings.data_file
+OUTPUT_DIR = settings.output_dir
 
 # 如果 output 文件夹不存在，就自动创建
 OUTPUT_DIR.mkdir(exist_ok=True)

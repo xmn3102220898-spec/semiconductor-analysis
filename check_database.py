@@ -1,11 +1,9 @@
 import sqlite3
-from pathlib import Path
 
-db_file = (
-    Path(__file__).resolve().parent
-    / "database"
-    / "production.db"
-)
+from app.config import settings
+
+
+db_file = settings.production_db
 
 conn = sqlite3.connect(db_file)
 cursor = conn.cursor()

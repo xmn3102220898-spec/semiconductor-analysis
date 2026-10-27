@@ -6,6 +6,10 @@
 模拟生产数据。它可以证明你掌握了数据处理、SQL、API 和工程化方法，
 不能表述为真实晶圆厂项目经验。
 
+生产实现位于 `app/`：`app/data`、`app/analysis`、`app/api`、
+`app/rag`、`app/llm`。根目录同名模块是兼容入口，适合阅读调用关系，
+核心逻辑应进入对应的 `app/` 模块阅读。
+
 本阶段完成后，你应该能独立完成下面这条链路：
 
 ```text
@@ -68,9 +72,9 @@ python -m uvicorn main_api:app --host 0.0.0.0 --port 8000
 
 ### 阅读顺序
 
-1. `production_source.py`
-2. `database_manager.py`
-3. `database_query.py`
+1. `app/data/source.py`
+2. `app/data/manager.py`
+3. `app/data/query.py`
 
 重点看四个动作：
 
