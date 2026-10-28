@@ -27,3 +27,6 @@ data/rag_index/
 .idea/
 .DS_Store
 Thumbs.db
+
+# 社交卡片与图表生成的工作目录
+output/social/

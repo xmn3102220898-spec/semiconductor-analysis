@@ -31,21 +31,13 @@
 
 ## 架构
 
-```mermaid
-flowchart LR
-    File["CSV / JSON"] --> Validate["校验与数据质量"]
-    Validate --> SQLite["SQLite + 索引"]
-    SQLite --> Rules["异常 / 评分 / 趋势"]
-    KB["知识库"] --> RAG["切分 + 持久化索引 + 混合检索"]
-    Rules --> API["FastAPI"]
-    RAG --> API
-    Rules --> LLM["LLM + Schema 校验"]
-    RAG --> LLM
-    LLM --> Fallback["规则降级"]
-    API --> Web["仪表盘 / 历史 / chunk 原文"]
-```
+![五层架构速览](docs/screenshots/architecture-overview.png)
 
-详细架构见 [ARCHITECTURE.md](docs/ARCHITECTURE.md)。
+五层结构与各层产出物：原始 CSV/JSON 与知识库 → 校验和 SQLite 同步 → 规则评分
+→ FastAPI → 仪表盘。AI 支线独立于主链路，只读规则事实，不参与评分。
+
+数据流、RAG 与 LLM 的时序图、存储细节，以及可复制的 mermaid 文本版结构图，
+都在 [ARCHITECTURE.md](docs/ARCHITECTURE.md)。
 
 ## 核心能力
 
