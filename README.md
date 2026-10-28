@@ -1,5 +1,11 @@
 # 半导体设备生产分析与异常识别平台
 
+[![CI](https://github.com/xmn3102220898-spec/semiconductor-analysis/actions/workflows/ci.yml/badge.svg)](https://github.com/xmn3102220898-spec/semiconductor-analysis/actions/workflows/ci.yml)
+![Python](https://img.shields.io/badge/python-3.12-3776ab)
+![Tests](https://img.shields.io/badge/tests-72%20passed-brightgreen)
+![Core coverage](https://img.shields.io/badge/core%20coverage-86.47%25-2ea44f)
+![Docker](https://img.shields.io/badge/docker--compose-smoke-2496ed)
+
 一个使用**模拟生产数据**构建的设备数据分析、异常识别、RAG 知识助手和
 受控大模型报告系统，重点展示从原始文件到可解释 API、页面和 AI 输出的
 完整工程链路。
