@@ -94,7 +94,7 @@ python scripts/dev.py rag-regression
 - 混合检索；
 - 元数据过滤；
 - 无关问题 `no_match`；
-- 30 条五分类评估集；
+- 50 条七分类段落级评估集；
 - Prompt 中的真实 chunk_id。
 
 ### LLM 控制
@@ -114,17 +114,17 @@ python scripts/dev.py rag-regression
 CI 回归：
 
 ```text
-python scripts/evaluate_rag.py --embedder deterministic --fail-under 0.85
+python scripts/evaluate_rag.py --embedder deterministic --fail-under 0.80
 ```
 
-不需要下载向量模型，但使用同一 30 条问题、混合检索和 5 条负例。
+不需要下载向量模型，但使用同一 50 条问题、混合检索和 5 条负例。
 
-当前 CI 基线：
+当前 CI 基线（20 篇文档 / 102 chunk）：
 
-- recall@1/@3/@5：1.0 / 1.0 / 1.0
-- MRR：1.0
+- recall@1/@3/@5：0.80 / 0.86 / 0.88
+- MRR：0.8317
 - 负例 no-match：1.0
-- P95：约 2.57 ms
+- P95：约 15.60 ms（语料变大后单次检索耗时上升，仍是毫秒级）
 
 真实语义模型评估：
 
@@ -132,14 +132,11 @@ python scripts/evaluate_rag.py --embedder deterministic --fail-under 0.85
 make rag-eval
 ```
 
-当前本机基线：
+当前本机基线：**未复测**。评测机没有安装 `torch` 与
+`sentence-transformers`，语义模型路径无法运行，因此不给出数字。
+历史版本在 3 篇文档上记录过 recall 1.0，那是结构性满分，已废弃。
 
-- recall@1/@3/@5：1.0 / 1.0 / 1.0
-- MRR：1.0
-- 负例 no-match：1.0
-- P95：约 11.95 ms
-
-30 条评估集规模很小，并围绕当前模拟知识库构建，指标偏乐观。真实简历中
+50 条评估集仍围绕当前模拟知识库构建，指标偏乐观。真实简历中
 必须同时注明数据集规模和模拟边界。
 
 ## 5. 固定数据回归

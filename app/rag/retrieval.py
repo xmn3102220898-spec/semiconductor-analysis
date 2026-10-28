@@ -90,8 +90,9 @@ class HybridRetriever:
         embedder: Embedder,
         vector_weight: float = 0.65,
         keyword_weight: float = 0.35,
-        semantic_only_min_score: float = 0.4,
+        semantic_only_min_score: float = 0.5,
         min_hybrid_score: float = 0.12,
+        min_keyword_coverage: float = 0.25,
     ) -> None:
         total_weight = vector_weight + keyword_weight
         if total_weight <= 0:
@@ -102,15 +103,24 @@ class HybridRetriever:
         self.keyword_weight = keyword_weight / total_weight
         self.semantic_only_min_score = semantic_only_min_score
         self.min_hybrid_score = min_hybrid_score
+        self.min_keyword_coverage = min_keyword_coverage
 
     def _keyword_scores(
         self,
         question: str,
         chunks: list[KnowledgeChunk],
-    ) -> np.ndarray:
+    ) -> tuple[np.ndarray, np.ndarray]:
+        """Return (BM25 scores, idf-weighted query coverage per chunk).
+
+        覆盖度 = 片段命中的查询词 idf 之和 / 查询词 idf 之和。它是尺度无关的：
+        语料从 3 篇扩到 20 篇时，绝对 BM25 分会整体变小，但覆盖度不变，
+        因此适合做「是否拒答」的判据，而绝对阈值不适合。
+        """
+
         query_tokens = _tokens(question)
         if not query_tokens or not chunks:
-            return np.zeros(len(chunks), dtype=np.float32)
+            empty = np.zeros(len(chunks), dtype=np.float32)
+            return empty, empty.copy()
 
         documents = [
             _tokens(
@@ -128,20 +138,31 @@ class HybridRetriever:
         k1 = 1.5
         b = 0.75
         scores = np.zeros(len(chunks), dtype=np.float32)
+        coverage = np.zeros(len(chunks), dtype=np.float32)
         corpus_size = len(documents)
+
+        def idf_of(token: str) -> float:
+            return math.log(
+                1
+                + (corpus_size - document_frequency[token] + 0.5)
+                / (document_frequency[token] + 0.5)
+            )
+
+        # 未出现在任何片段里的查询词按“最稀有”计权，这样无关问题
+        # 的覆盖度不会被大量缺词稀释成高分。
+        query_weight = sum(idf_of(token) for token in set(query_tokens))
+        unique_query_tokens = list(dict.fromkeys(query_tokens))
 
         for index, document in enumerate(documents):
             frequencies = Counter(document)
             score = 0.0
-            for token in query_tokens:
+            matched_weight = 0.0
+            for token in unique_query_tokens:
                 frequency = frequencies.get(token, 0)
                 if not frequency:
                     continue
-                idf = math.log(
-                    1
-                    + (corpus_size - document_frequency[token] + 0.5)
-                    / (document_frequency[token] + 0.5)
-                )
+                idf = idf_of(token)
+                matched_weight += idf
                 denominator = frequency + k1 * (
                     1 - b + b * len(document) / max(average_length, 1)
                 )
@@ -149,7 +170,10 @@ class HybridRetriever:
                     frequency * (k1 + 1) / denominator
                 )
             scores[index] = score
-        return scores
+            coverage[index] = (
+                matched_weight / query_weight if query_weight else 0.0
+            )
+        return scores, coverage
 
     def search(
         self,
@@ -195,11 +219,13 @@ class HybridRetriever:
         vector_scores = np.clip(vector_scores, 0, 1)
 
         candidate_chunks = [chunks[index] for index in candidate_indexes]
-        keyword_scores = self._keyword_scores(
+        keyword_scores, keyword_coverage = self._keyword_scores(
             question,
             candidate_chunks,
         )
         max_keyword = float(keyword_scores.max()) if len(keyword_scores) else 0
+        # 排序仍用最大归一化（保持与历史一致的相对次序），拒答判据改用
+        # 覆盖度：命中一个偶然词只能拿到很低的覆盖度，不会被当成满分。
         normalized_keywords = (
             keyword_scores / max_keyword
             if max_keyword > 0
@@ -224,11 +250,11 @@ class HybridRetriever:
                 break
             vector_score = float(vector_scores[candidate_position])
             hybrid_score = float(hybrid_scores[candidate_position])
-            keyword_score = float(
-                normalized_keywords[candidate_position]
-            )
-            if keyword_score <= 0 and (
-                vector_score < self.semantic_only_min_score
+            coverage = float(keyword_coverage[candidate_position])
+            # 关键词覆盖不足时，只有向量相似度足够高才保留（改写问法走这条路）
+            if (
+                coverage < self.min_keyword_coverage
+                and vector_score < self.semantic_only_min_score
             ):
                 continue
             if hybrid_score < self.min_hybrid_score:
@@ -242,6 +268,7 @@ class HybridRetriever:
                     float(normalized_keywords[candidate_position]),
                     4,
                 ),
+                "keyword_coverage": round(coverage, 4),
                 "score": round(hybrid_score, 4),
             })
 

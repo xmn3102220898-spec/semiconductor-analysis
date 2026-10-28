@@ -16,10 +16,10 @@ python -X utf8 scripts/dev.py check
 
 | 指标 | 数值 |
 |---|---:|
-| 测试数 | 74 |
-| 通过数 | 74 |
+| 测试数 | 78 |
+| 通过数 | 78 |
 | 失败数 | 0 |
-| 测试耗时 | 约 4.45 s |
+| 测试耗时 | 约 3.50 s |
 | 核心分析行覆盖率 | 86.47% (147/170) |
 | 覆盖率阈值 | 80% |
 
@@ -69,54 +69,55 @@ python -X utf8 scripts/bench_scale.py
 
 数据通过临时 SQLite 生成，不写入项目数据库。
 
-## 4. RAG 真实语义模型
+## 4. RAG 真实语义模型（本轮未复测）
 
 命令：
 
-```powershell
+```text
 $env:HF_HUB_OFFLINE="1"
-python -X utf8 scripts/evaluate_rag.py --embedder semantic --fail-under 0.85
+python -X utf8 scripts/evaluate_rag.py --embedder semantic --fail-under 0.80
 ```
 
-当前结果：
+状态：**未复测**。本轮语料扩容后，评测机上没有安装 `torch` 与
+`sentence-transformers`，语义模型路径无法运行，因此本节不再给出数字。
 
-| 指标 | 数值 |
-|---|---:|
-| 问题数 | 30 |
-| 分类 | 温度/压力/良率/维护/工艺各 6 |
-| recall@1 | 1.0 |
-| recall@3 | 1.0 |
-| recall@5 | 1.0 |
-| MRR | 1.0 |
-| 负例 no-match | 5/5 |
-| P50 | 11.21 ms |
-| P95 | 13.15 ms |
+历史版本（3 篇文档、16 个 chunk、30 题、top_k=5）曾记录
+recall@1/@3/@5 均为 1.0，但那是结构性满分：候选片段数与 top_k 同阶，
+分数是算出来的而不是检出来的。该数字已废弃，不再作为卖点引用。
 
-边界：
-
-- 只有 3 个模拟文档、16 个 chunk。
-- 评估问题围绕当前模拟知识库编写。
-- 该结果不能外推为真实工厂文档准确率。
+复测方式：在有模型的机器上执行上面的命令，结果写入
+`output/rag_evaluation.json`，其中 `embedding_model` 会显示实际模型名。
 
 ## 5. RAG CI 确定性回归
 
 命令：
 
-```powershell
-python -X utf8 scripts/evaluate_rag.py --embedder deterministic --fail-under 0.85
+```text
+python -X utf8 scripts/evaluate_rag.py --embedder deterministic --fail-under 0.80
 ```
 
-当前结果：
+当前结果（20 篇文档 / 102 个 chunk / 50 题）：
 
 | 指标 | 数值 |
 |---|---:|
-| recall@1/@3/@5 | 1.0 / 1.0 / 1.0 |
-| MRR | 1.0 |
+| 问题数 | 50 |
+| 分类 | 温度 8、压力 7、良率 5、设备 12、改写 8、干扰 6、多证据 4 |
+| recall@1 | 0.80 |
+| recall@3 | 0.86 |
+| recall@5 | 0.88 |
+| MRR | 0.8317 |
+| 旧关键词口径 recall@3 | 0.82（仅对比，不作门禁） |
 | 负例 no-match | 5/5 |
-| P50 | 2.343 ms |
-| P95 | 2.571 ms |
+| P50 | 14.30 ms |
+| P95 | 15.60 ms |
 
-它用于防止检索逻辑和评估集回归，不验证真实模型权重。
+边界：
+
+- 金标是段落级的：命中同文档的其它段落不算命中，避免「文档对就算对」。
+- 改写类问题 recall@3 只有 0.375：确定性嵌入器只能做词面匹配，无法把
+  「热场读数」映射到「温度」。这是该嵌入器的上限，不是检索逻辑回归。
+- 数据集仍围绕本项目模拟知识库编写，指标偏乐观，不能外推为真实工厂
+  文档准确率。
 
 ## 6. LLM 控制与统计
 
@@ -140,10 +141,10 @@ python -X utf8 scripts/evaluate_rag.py --embedder deterministic --fail-under 0.8
 |---|---:|
 | 设备 | 3 |
 | 生产批次 | 30 |
-| 知识文档 | 3 |
-| RAG chunk | 16 |
+| 知识文档 | 20 |
+| RAG chunk | 102 |
 | 向量维度 | 384 |
-| 评估问题 | 30 |
+| 评估问题 | 50 |
 | 负例问题 | 5 |
 
 ## 8. 不可宣称的指标

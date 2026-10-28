@@ -211,6 +211,40 @@ class HybridRetrievalTests(unittest.TestCase):
         self.assertTrue(result["no_match"])
         self.assertEqual(result["hits"], [])
 
+    def test_single_incidental_token_does_not_saturate_keyword_score(self) -> None:
+        """命中一个偶然词不该拿满分，否则负例无法被拒答。
+
+        「推荐一道川菜菜谱」与「下一道工序」只共享一个偶然词；旧实现把
+        BM25 最大值归一化，这个片段会拿到 keyword_score=1.0 并进入结果。
+        """
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            base = Path(temp_dir)
+            knowledge = base / "knowledge"
+            knowledge.mkdir(parents=True, exist_ok=True)
+            (knowledge / "clean.txt").write_text(
+                "文档标题：清洗流程\n\n"
+                "残留与后续影响：清洗不彻底会在下一道工序表现为颗粒超标。\n",
+                encoding="utf-8",
+            )
+            embedder = KeywordEmbedder()
+            index = PersistentKnowledgeIndex(
+                knowledge_dir=knowledge,
+                index_dir=base / "index",
+                embedder=embedder,
+                chunking=ChunkingConfig(max_chars=200, overlap_chars=0),
+            )
+            pipeline = KnowledgePipeline(
+                index,
+                HybridRetriever(index, embedder),
+            )
+            off_topic = pipeline.search("推荐一道川菜菜谱", top_k=3)
+            on_topic = pipeline.search("清洗不彻底会有什么影响", top_k=3)
+
+        self.assertTrue(off_topic["no_match"])
+        self.assertEqual(off_topic["hits"], [])
+        self.assertFalse(on_topic["no_match"])
+
     def test_equipment_filter_excludes_other_equipment(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             base = Path(temp_dir)
@@ -297,38 +331,79 @@ class IndexFreshnessTests(unittest.TestCase):
 
 
 class EvaluationDatasetTests(unittest.TestCase):
-    def test_dataset_has_thirty_cases_and_five_categories(self) -> None:
-        cases = json.loads(
-            (
-                Path(__file__).parents[1]
-                / "evaluations"
-                / "rag_questions.json"
-            ).read_text(encoding="utf-8")
-        )
-        categories = {case["category"] for case in cases}
+    """评估集不只是数字，金标必须能在真实索引里落到具体段落。"""
 
-        self.assertEqual(len(cases), 30)
+    @classmethod
+    def setUpClass(cls) -> None:
+        root = Path(__file__).parents[1]
+        cls.cases = json.loads(
+            (root / "evaluations" / "rag_questions.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        cls.available = {
+            (chunk.source, chunk.section)
+            for chunk in load_and_chunk_documents(
+                root / "knowledge_base",
+                ChunkingConfig(),
+            )
+        }
+
+    def test_dataset_has_fifty_cases_and_seven_categories(self) -> None:
+        categories = {case["category"] for case in self.cases}
+
+        self.assertEqual(len(self.cases), 50)
         self.assertEqual(
             categories,
             {
                 "temperature",
                 "pressure",
                 "yield",
-                "maintenance",
-                "process",
+                "equipment",
+                "paraphrase",
+                "distractor",
+                "multi_hop",
             },
         )
+
+    def test_case_ids_are_unique(self) -> None:
+        ids = [case["id"] for case in self.cases]
+
+        self.assertEqual(len(ids), len(set(ids)))
+
+    def test_every_gold_section_exists_in_index(self) -> None:
+        # 每个金标段落至少要能在该题列出的某个文档里找到，
+        # 否则题目永远不可能命中。
+        missing = [
+            (case["id"], section)
+            for case in self.cases
+            for section in case["expected_sections"]
+            if not any(
+                (source, section) in self.available
+                for source in case["sources"]
+            )
+        ]
+
+        self.assertEqual(missing, [])
+
+    def test_relevance_requires_gold_section_not_just_source(self) -> None:
+        case = next(item for item in self.cases if item["id"] == "e01")
+        base_hit = {
+            "source": case["sources"][0],
+            "parameter_type": "general",
+            "title": "刻蚀终点检测与过刻控制",
+            "content": "终点信号长时间不出现拐点。",
+        }
+
         self.assertTrue(
             _is_relevant(
-                {
-                    "source": "equipment_alarm.txt",
-                    "parameter_type": "temperature",
-                    "title": "设备异常排查参考",
-                    "section": "温度过高",
-                    "content": "检查温度传感器。",
-                },
-                cases[0],
+                {**base_hit, "section": case["expected_sections"][0]},
+                case,
             )
+        )
+        # 同一文档的其它段落不算命中，这是 strict 口径与旧口径的关键差别
+        self.assertFalse(
+            _is_relevant({**base_hit, "section": "边界与限制"}, case)
         )
 
 

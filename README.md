@@ -151,10 +151,11 @@ LLM 主链路：
 
 | 指标 | 当前结果 | 测量方法 |
 |---|---:|---|
-| 自动化测试 | 74 / 74 通过 | `python scripts/dev.py check` |
+| 自动化测试 | 78 / 78 通过 | `python scripts/dev.py check` |
 | 核心分析行覆盖率 | 86.47% | 标准库 `trace`，阈值 80% |
-| 30 条 RAG recall@3 | 1.0 | `make rag-eval` |
-| RAG 真实模型 P95 | 约 13.15 ms | 30 条评估，排除首次构建 |
+| 知识库规模 | 20 篇 / 102 chunk | `knowledge_base/` |
+| 50 题 RAG recall@3 | 0.86（recall@1 0.80） | `make rag-eval` |
+| RAG 检索 P95 | 约 15.6 ms | 50 题评估，确定性嵌入器，排除首次构建 |
 | RAG 负例 no-match | 5 / 5 | 固定无关问题 |
 | 100k 设备分页 P95 | 约 24.48 ms | `scripts/bench_scale.py` |
 | 100k 时间范围 P95 | 约 19.06 ms | `scripts/bench_scale.py` |

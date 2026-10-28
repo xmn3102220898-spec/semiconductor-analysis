@@ -1,4 +1,12 @@
-"""Evaluate the production RAG pipeline against the fixed 30-question set."""
+"""Evaluate the production RAG pipeline against the fixed 50-question set.
+
+相关性判定有两套口径，同一份报告里都会给出：
+
+* strict（门禁口径）：命中 `sources` 中的文档，且 `section` 落在
+  `expected_sections` 里。金标是段落级的，同文档其它段落不算命中。
+* legacy（历史口径）：命中 `sources`，参数类型一致，且正文出现某个关键词。
+  这套口径在语料很小时容易得到结构性满分，保留它只用于对比，不作为门禁。
+"""
 
 from __future__ import annotations
 
@@ -33,6 +41,19 @@ NEGATIVE_QUESTIONS = [
 
 
 def _is_relevant(hit: dict[str, Any], case: dict[str, Any]) -> bool:
+    """段落级金标：文档对得上，且 section 落在标注集合里。"""
+
+    if hit["source"] not in case["sources"]:
+        return False
+    expected_sections = case.get("expected_sections")
+    if expected_sections:
+        return hit["section"] in expected_sections
+    return _is_relevant_legacy(hit, case)
+
+
+def _is_relevant_legacy(hit: dict[str, Any], case: dict[str, Any]) -> bool:
+    """历史口径：文档 + 参数类型 + 关键词子串。仅用于对比，不作门禁。"""
+
     if hit["source"] not in case["sources"]:
         return False
     expected_parameter = case.get("parameter_type")
@@ -44,7 +65,8 @@ def _is_relevant(hit: dict[str, Any], case: dict[str, Any]) -> bool:
         return False
 
     haystack = f"{hit['title']} {hit['section']} {hit['content']}"
-    return any(keyword in haystack for keyword in case["keywords"])
+    keywords = case.get("keywords") or []
+    return any(keyword in haystack for keyword in keywords)
 
 
 def _percentile(values: list[float], percentile: float) -> float:
@@ -76,10 +98,12 @@ def evaluate(
         latencies.append(latency_ms)
 
         first_rank = None
+        legacy_rank = None
         for rank, hit in enumerate(retrieval["hits"], start=1):
-            if _is_relevant(hit, case):
+            if first_rank is None and _is_relevant(hit, case):
                 first_rank = rank
-                break
+            if legacy_rank is None and _is_relevant_legacy(hit, case):
+                legacy_rank = rank
 
         category_ranks[case["category"]].append(first_rank)
         results.append({
@@ -87,6 +111,7 @@ def evaluate(
             "category": case["category"],
             "question": case["question"],
             "first_relevant_rank": first_rank,
+            "legacy_first_relevant_rank": legacy_rank,
             "no_match": retrieval["no_match"],
             "top_hits": [
                 {
@@ -101,28 +126,32 @@ def evaluate(
         })
 
     total = len(results)
-    metrics = {
-        f"recall@{k}": round(
+
+    def recall_at(rank_key: str, k: int) -> float:
+        hits = sum(
+            1
+            for item in results
+            if item[rank_key] is not None and item[rank_key] <= k
+        )
+        return round(hits / total, 4)
+
+    def mean_reciprocal_rank(rank_key: str) -> float:
+        return round(
             sum(
-                1
+                1 / item[rank_key]
                 for item in results
-                if item["first_relevant_rank"] is not None
-                and item["first_relevant_rank"] <= k
+                if item[rank_key] is not None
             )
             / total,
             4,
         )
-        for k in (1, 3, 5)
-    }
-    metrics["mrr"] = round(
-        sum(
-            1 / item["first_relevant_rank"]
-            for item in results
-            if item["first_relevant_rank"] is not None
-        )
-        / total,
-        4,
+
+    metrics = {f"recall@{k}": recall_at("first_relevant_rank", k) for k in (1, 3, 5)}
+    metrics["mrr"] = mean_reciprocal_rank("first_relevant_rank")
+    metrics.update(
+        {f"legacy_recall@{k}": recall_at("legacy_first_relevant_rank", k) for k in (1, 3, 5)}
     )
+    metrics["legacy_mrr"] = mean_reciprocal_rank("legacy_first_relevant_rank")
     metrics["no_match_rate"] = round(
         sum(1 for item in results if item["no_match"]) / total,
         4,
@@ -153,16 +182,26 @@ def evaluate(
         for category, ranks in sorted(category_ranks.items())
     }
 
+    status = pipeline.status()
     report = {
         "dataset": str(cases_path.relative_to(PROJECT_ROOT)),
         "case_count": total,
         "top_k": top_k,
+        "relevance_rule": (
+            "strict: source in case.sources AND section in "
+            "case.expected_sections; legacy: source + parameter_type + "
+            "keyword substring (comparison only)"
+        ),
+        "corpus": {
+            "documents": len(list((PROJECT_ROOT / "knowledge_base").glob("*.txt"))),
+            "chunks": len(pipeline.index.chunks),
+        },
         "embedding_model": pipeline.index.embedder.model_name,
         "strategy": "hybrid_vector_bm25",
         "negative_questions": NEGATIVE_QUESTIONS,
         "metrics": metrics,
         "category_recall@3": category_recall,
-        "index_status": pipeline.status(),
+        "index_status": status,
         "results": results,
     }
     output_path = PROJECT_ROOT / "output" / "rag_evaluation.json"

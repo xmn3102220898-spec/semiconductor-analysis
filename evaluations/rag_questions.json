@@ -1,242 +1,732 @@
 [
   {
-    "id": "T01",
+    "id": "t01",
     "category": "temperature",
-    "question": "温度过高应该先检查什么？",
-    "sources": ["equipment_alarm.txt", "etch_equipment.txt"],
+    "question": "ETCH-02 温度异常该怎么排查",
+    "sources": [
+      "etch_equipment.txt"
+    ],
+    "expected_sections": [
+      "温度异常"
+    ],
     "parameter_type": "temperature",
-    "keywords": ["温度", "传感器"]
+    "keywords": [
+      "温度"
+    ]
   },
   {
-    "id": "T02",
+    "id": "t02",
     "category": "temperature",
-    "question": "温度变化会影响刻蚀工艺吗？",
-    "sources": ["etch_equipment.txt"],
+    "question": "批次温度读到 120 度，报告里说要先核对什么",
+    "sources": [
+      "process_rules.txt"
+    ],
+    "expected_sections": [
+      "温度异常规则"
+    ],
     "parameter_type": "temperature",
-    "keywords": ["温度", "刻蚀"]
+    "keywords": [
+      "温度异常"
+    ]
   },
   {
-    "id": "T03",
+    "id": "t03",
     "category": "temperature",
-    "question": "温度传感器漂移如何确认？",
-    "sources": ["equipment_alarm.txt", "etch_equipment.txt"],
+    "question": "基座温度分布不匀导致膜厚偏薄怎么查",
+    "sources": [
+      "cvd_equipment.txt"
+    ],
+    "expected_sections": [
+      "温度均匀性"
+    ],
     "parameter_type": "temperature",
-    "keywords": ["温度传感器"]
+    "keywords": [
+      "温度"
+    ]
   },
   {
-    "id": "T04",
+    "id": "t04",
     "category": "temperature",
-    "question": "温度超过一百摄氏度是什么演示规则？",
-    "sources": ["process_rules.txt"],
+    "question": "光刻胶前烘温度偏低会带来什么后果",
+    "sources": [
+      "litho_track.txt"
+    ],
+    "expected_sections": [
+      "烘烤温度"
+    ],
     "parameter_type": "temperature",
-    "keywords": ["温度异常规则"]
+    "keywords": [
+      "温度"
+    ]
   },
   {
-    "id": "T05",
+    "id": "t05",
     "category": "temperature",
-    "question": "温控系统异常应该核对哪些记录？",
-    "sources": ["equipment_alarm.txt", "etch_equipment.txt"],
+    "question": "扩散炉各温区之间温差大对片内均匀性有什么影响",
+    "sources": [
+      "diffusion_furnace.txt"
+    ],
+    "expected_sections": [
+      "炉温分区"
+    ],
     "parameter_type": "temperature",
-    "keywords": ["温控系统"]
+    "keywords": [
+      "温区"
+    ]
   },
   {
-    "id": "T06",
+    "id": "t06",
     "category": "temperature",
-    "question": "温度偏离设定值时能否直接判断设备损坏？",
-    "sources": ["equipment_alarm.txt", "process_rules.txt"],
+    "question": "清洗药液温度偏高有什么风险",
+    "sources": [
+      "wet_clean.txt"
+    ],
+    "expected_sections": [
+      "药液浓度与温度"
+    ],
     "parameter_type": "temperature",
-    "keywords": ["设定值", "温度"]
+    "keywords": [
+      "温度"
+    ]
   },
   {
-    "id": "P01",
-    "category": "pressure",
-    "question": "压力过高应该查看哪些设备状态？",
-    "sources": ["equipment_alarm.txt", "etch_equipment.txt"],
-    "parameter_type": "pressure",
-    "keywords": ["压力", "真空"]
-  },
-  {
-    "id": "P02",
-    "category": "pressure",
-    "question": "腔体压力变化会影响等离子体吗？",
-    "sources": ["etch_equipment.txt"],
-    "parameter_type": "pressure",
-    "keywords": ["压力", "等离子体"]
-  },
-  {
-    "id": "P03",
-    "category": "pressure",
-    "question": "压力控制阀异常如何排查？",
-    "sources": ["etch_equipment.txt", "equipment_alarm.txt"],
-    "parameter_type": "pressure",
-    "keywords": ["压力控制阀"]
-  },
-  {
-    "id": "P04",
-    "category": "pressure",
-    "question": "压力超过一百二十千帕的模拟规则是什么？",
-    "sources": ["process_rules.txt"],
-    "parameter_type": "pressure",
-    "keywords": ["压力异常规则"]
-  },
-  {
-    "id": "P05",
-    "category": "pressure",
-    "question": "真空系统状态应该怎样核对？",
-    "sources": ["equipment_alarm.txt", "etch_equipment.txt"],
-    "parameter_type": "pressure",
-    "keywords": ["真空系统"]
-  },
-  {
-    "id": "P06",
-    "category": "pressure",
-    "question": "单个压力读数能证明零部件损坏吗？",
-    "sources": ["equipment_alarm.txt"],
-    "parameter_type": "pressure",
-    "keywords": ["压力", "零部件损坏"]
-  },
-  {
-    "id": "Y01",
-    "category": "yield",
-    "question": "良率过低时需要确认哪些数据口径？",
-    "sources": ["equipment_alarm.txt"],
-    "parameter_type": "yield",
-    "keywords": ["良率", "统计口径"]
-  },
-  {
-    "id": "Y02",
-    "category": "yield",
-    "question": "良率下降能否直接认定是设备损坏？",
-    "sources": ["etch_equipment.txt", "process_rules.txt"],
-    "parameter_type": "yield",
-    "keywords": ["良率", "损坏"]
-  },
-  {
-    "id": "Y03",
-    "category": "yield",
-    "question": "低良率异常的模拟阈值是多少？",
-    "sources": ["process_rules.txt"],
-    "parameter_type": "yield",
-    "keywords": ["良率规则"]
-  },
-  {
-    "id": "Y04",
-    "category": "yield",
-    "question": "良率下降可能涉及哪些制造环节？",
-    "sources": ["etch_equipment.txt"],
-    "parameter_type": "yield",
-    "keywords": ["良率下降", "制造环节"]
-  },
-  {
-    "id": "Y05",
-    "category": "yield",
-    "question": "异常批次和正常批次应该比较哪些内容？",
-    "sources": ["equipment_alarm.txt"],
-    "parameter_type": "yield",
-    "keywords": ["异常批次", "正常批次"]
-  },
-  {
-    "id": "Y06",
-    "category": "yield",
-    "question": "规则触发能否证明参数导致了良率下降？",
-    "sources": ["process_rules.txt"],
-    "parameter_type": "yield",
-    "keywords": ["良率下降", "不能直接证明"]
-  },
-  {
-    "id": "M01",
-    "category": "maintenance",
-    "question": "多种异常同时出现时应该怎么做？",
-    "sources": ["equipment_alarm.txt"],
-    "parameter_type": "general",
-    "keywords": ["多种异常", "时间顺序"]
-  },
-  {
-    "id": "M02",
-    "category": "maintenance",
-    "question": "相关性等同于因果关系吗？",
-    "sources": ["equipment_alarm.txt"],
-    "parameter_type": "general",
-    "keywords": ["相关性", "因果关系"]
-  },
-  {
-    "id": "M03",
-    "category": "maintenance",
-    "question": "设备维护和参数调整有什么安全要求？",
-    "sources": ["equipment_alarm.txt"],
-    "parameter_type": "general",
-    "keywords": ["安全", "设备"]
-  },
-  {
-    "id": "M04",
-    "category": "maintenance",
-    "question": "异常排查时为什么要核对报警时间和设定值？",
-    "sources": ["equipment_alarm.txt"],
+    "id": "t07",
+    "category": "temperature",
+    "question": "抛光液温度漂移会让去除速率怎么变化",
+    "sources": [
+      "cmp_slurry.txt"
+    ],
+    "expected_sections": [
+      "抛光液温度"
+    ],
     "parameter_type": "temperature",
-    "keywords": ["报警时间", "设定值"]
+    "keywords": [
+      "温度"
+    ]
   },
   {
-    "id": "M05",
-    "category": "maintenance",
-    "question": "怎样统计每台设备的异常批次和平均值？",
-    "sources": ["process_rules.txt"],
-    "parameter_type": "general",
-    "keywords": ["异常批次", "平均"]
+    "id": "t08",
+    "category": "temperature",
+    "question": "退火升温速度过快会引入什么问题",
+    "sources": [
+      "thermal_oxidation.txt"
+    ],
+    "expected_sections": [
+      "退火温度曲线"
+    ],
+    "parameter_type": "temperature",
+    "keywords": [
+      "退火"
+    ]
   },
   {
-    "id": "M06",
-    "category": "maintenance",
-    "question": "异常记录应该按照什么顺序进行对齐？",
-    "sources": ["equipment_alarm.txt"],
-    "parameter_type": "general",
-    "keywords": ["时间顺序", "报警"]
+    "id": "p01",
+    "category": "pressure",
+    "question": "刻蚀腔体压力异常时排查步骤是什么",
+    "sources": [
+      "etch_equipment.txt"
+    ],
+    "expected_sections": [
+      "压力异常"
+    ],
+    "parameter_type": "pressure",
+    "keywords": [
+      "压力"
+    ]
   },
   {
-    "id": "E01",
-    "category": "process",
-    "question": "刻蚀设备通常包含哪些系统？",
-    "sources": ["etch_equipment.txt"],
-    "parameter_type": "general",
-    "keywords": ["刻蚀设备", "系统"]
+    "id": "p02",
+    "category": "pressure",
+    "question": "CVD 腔体压力偏高会不会让膜厚偏厚、均匀性变差",
+    "sources": [
+      "cvd_equipment.txt"
+    ],
+    "expected_sections": [
+      "腔体压力"
+    ],
+    "parameter_type": "pressure",
+    "keywords": [
+      "压力"
+    ]
   },
   {
-    "id": "E02",
-    "category": "process",
-    "question": "刻蚀工艺需要控制哪些结果？",
-    "sources": ["etch_equipment.txt"],
-    "parameter_type": "general",
-    "keywords": ["刻蚀", "形状", "深度"]
+    "id": "p03",
+    "category": "pressure",
+    "question": "溅射前本底真空建立时间变长说明什么",
+    "sources": [
+      "pvd_sputter.txt"
+    ],
+    "expected_sections": [
+      "真空度与漏率"
+    ],
+    "parameter_type": "pressure",
+    "keywords": [
+      "真空"
+    ]
   },
   {
-    "id": "E03",
-    "category": "process",
-    "question": "为什么刻蚀要控制材料去除均匀性？",
-    "sources": ["etch_equipment.txt"],
-    "parameter_type": "general",
-    "keywords": ["刻蚀", "均匀性"]
+    "id": "p04",
+    "category": "pressure",
+    "question": "抛光压力偏大会增加划伤还是碟形凹陷",
+    "sources": [
+      "cmp_polishing.txt"
+    ],
+    "expected_sections": [
+      "抛光压力与转速"
+    ],
+    "parameter_type": "pressure",
+    "keywords": [
+      "压力"
+    ]
   },
   {
-    "id": "E04",
-    "category": "process",
-    "question": "气体输送系统异常会影响刻蚀吗？",
-    "sources": ["etch_equipment.txt"],
-    "parameter_type": "general",
-    "keywords": ["气体输送系统"]
+    "id": "p05",
+    "category": "pressure",
+    "question": "注入机真空度不足会带来散射或污染吗",
+    "sources": [
+      "ion_implant.txt"
+    ],
+    "expected_sections": [
+      "真空与污染"
+    ],
+    "parameter_type": "pressure",
+    "keywords": [
+      "真空"
+    ]
   },
   {
-    "id": "E05",
-    "category": "process",
-    "question": "射频功率系统在刻蚀设备中起什么作用？",
-    "sources": ["etch_equipment.txt"],
-    "parameter_type": "general",
-    "keywords": ["射频功率系统"]
+    "id": "p06",
+    "category": "pressure",
+    "question": "只看到一个压力数值偏高能直接判定零部件损坏吗",
+    "sources": [
+      "equipment_alarm.txt"
+    ],
+    "expected_sections": [
+      "压力过高"
+    ],
+    "parameter_type": "pressure",
+    "keywords": [
+      "压力过高"
+    ]
   },
   {
-    "id": "E06",
-    "category": "process",
-    "question": "本项目的生产数据分析规则包含哪些指标？",
-    "sources": ["process_rules.txt"],
-    "parameter_type": "general",
-    "keywords": ["模拟生产数据", "规则"]
+    "id": "p07",
+    "category": "pressure",
+    "question": "压力异常的判定阈值写在哪个规则里",
+    "sources": [
+      "process_rules.txt"
+    ],
+    "expected_sections": [
+      "压力异常规则"
+    ],
+    "parameter_type": "pressure",
+    "keywords": [
+      "压力异常"
+    ]
+  },
+  {
+    "id": "y01",
+    "category": "yield",
+    "question": "良率偏低时应该先看哪些参数",
+    "sources": [
+      "equipment_alarm.txt"
+    ],
+    "expected_sections": [
+      "良率过低"
+    ],
+    "parameter_type": "yield",
+    "keywords": [
+      "良率"
+    ]
+  },
+  {
+    "id": "y02",
+    "category": "yield",
+    "question": "低良率规则是怎么定义的",
+    "sources": [
+      "process_rules.txt"
+    ],
+    "expected_sections": [
+      "低良率规则"
+    ],
+    "parameter_type": "yield",
+    "keywords": [
+      "良率"
+    ]
+  },
+  {
+    "id": "y03",
+    "category": "yield",
+    "question": "参数漂移和良率损失怎么做关联分析",
+    "sources": [
+      "spc_control.txt"
+    ],
+    "expected_sections": [
+      "与良率关联"
+    ],
+    "parameter_type": "yield",
+    "keywords": [
+      "良率"
+    ]
+  },
+  {
+    "id": "y04",
+    "category": "yield",
+    "question": "温度、压力、良率同时异常该按什么顺序处理",
+    "sources": [
+      "equipment_alarm.txt"
+    ],
+    "expected_sections": [
+      "多种异常同时出现"
+    ],
+    "parameter_type": "yield",
+    "keywords": [
+      "良率"
+    ]
+  },
+  {
+    "id": "y05",
+    "category": "yield",
+    "question": "健康评分和逐事件扣分是怎么算出来的",
+    "sources": [
+      "process_rules.txt"
+    ],
+    "expected_sections": [
+      "设备风险分析"
+    ],
+    "parameter_type": "yield",
+    "keywords": [
+      "扣分"
+    ]
+  },
+  {
+    "id": "e01",
+    "category": "equipment",
+    "question": "刻蚀终点信号长时间不出现拐点是什么原因",
+    "sources": [
+      "etch_endpoint.txt"
+    ],
+    "expected_sections": [
+      "终点信号异常"
+    ],
+    "keywords": [
+      "终点"
+    ]
+  },
+  {
+    "id": "e02",
+    "category": "equipment",
+    "question": "刻蚀腔体清洁周期按什么定比较合理",
+    "sources": [
+      "etch_chamber_clean.txt"
+    ],
+    "expected_sections": [
+      "清洁周期判定"
+    ],
+    "keywords": [
+      "清洁周期"
+    ]
+  },
+  {
+    "id": "e03",
+    "category": "equipment",
+    "question": "刻蚀颗粒连续超标应该先检查哪些部件",
+    "sources": [
+      "etch_chamber_clean.txt"
+    ],
+    "expected_sections": [
+      "颗粒超标处置"
+    ],
+    "keywords": [
+      "颗粒"
+    ]
+  },
+  {
+    "id": "e04",
+    "category": "equipment",
+    "question": "过刻量怎么设定，过刻过多有什么后果",
+    "sources": [
+      "etch_endpoint.txt"
+    ],
+    "expected_sections": [
+      "过刻量设定"
+    ],
+    "keywords": [
+      "过刻"
+    ]
+  },
+  {
+    "id": "e05",
+    "category": "equipment",
+    "question": "抛光垫用到寿命末段会出现什么现象",
+    "sources": [
+      "cmp_slurry.txt"
+    ],
+    "expected_sections": [
+      "抛光垫寿命"
+    ],
+    "keywords": [
+      "抛光垫"
+    ]
+  },
+  {
+    "id": "e06",
+    "category": "equipment",
+    "question": "抛光表面划伤怎么区分颗粒原因和机械原因",
+    "sources": [
+      "cmp_polishing.txt"
+    ],
+    "expected_sections": [
+      "表面划伤"
+    ],
+    "keywords": [
+      "划伤"
+    ]
+  },
+  {
+    "id": "e07",
+    "category": "equipment",
+    "question": "光刻胶厚度主要由哪些参数决定",
+    "sources": [
+      "litho_track.txt"
+    ],
+    "expected_sections": [
+      "胶厚与转速"
+    ],
+    "keywords": [
+      "胶厚"
+    ]
+  },
+  {
+    "id": "e08",
+    "category": "equipment",
+    "question": "套刻误差怎么判断是整体平移还是局部畸变",
+    "sources": [
+      "litho_overlay.txt"
+    ],
+    "expected_sections": [
+      "套刻误差来源"
+    ],
+    "keywords": [
+      "套刻"
+    ]
+  },
+  {
+    "id": "e09",
+    "category": "equipment",
+    "question": "对准标记被前道膜层覆盖会有什么影响",
+    "sources": [
+      "litho_overlay.txt"
+    ],
+    "expected_sections": [
+      "对准标记"
+    ],
+    "keywords": [
+      "对准标记"
+    ]
+  },
+  {
+    "id": "e10",
+    "category": "equipment",
+    "question": "离子注入束流不稳定会造成什么后果",
+    "sources": [
+      "ion_implant.txt"
+    ],
+    "expected_sections": [
+      "束流稳定性"
+    ],
+    "keywords": [
+      "束流"
+    ]
+  },
+  {
+    "id": "e11",
+    "category": "equipment",
+    "question": "注入角度偏差会引发哪些效应",
+    "sources": [
+      "ion_implant.txt"
+    ],
+    "expected_sections": [
+      "角度控制"
+    ],
+    "keywords": [
+      "角度"
+    ]
+  },
+  {
+    "id": "e12",
+    "category": "equipment",
+    "question": "溅射靶材接近寿命末段有哪些征兆",
+    "sources": [
+      "pvd_sputter.txt"
+    ],
+    "expected_sections": [
+      "靶材消耗"
+    ],
+    "keywords": [
+      "靶材"
+    ]
+  },
+  {
+    "id": "q01",
+    "category": "paraphrase",
+    "question": "片子热场读数和设定值对不上，先确认哪个部件",
+    "sources": [
+      "cvd_equipment.txt"
+    ],
+    "expected_sections": [
+      "温度均匀性"
+    ],
+    "keywords": [
+      "热电偶"
+    ]
+  },
+  {
+    "id": "q02",
+    "category": "paraphrase",
+    "question": "炉子里气流给不上去，方块电阻整体跑偏",
+    "sources": [
+      "diffusion_furnace.txt"
+    ],
+    "expected_sections": [
+      "气体流量"
+    ],
+    "keywords": [
+      "气体流量"
+    ]
+  },
+  {
+    "id": "q03",
+    "category": "paraphrase",
+    "question": "机台连续跑几小时后，后面几片对位越来越差",
+    "sources": [
+      "litho_overlay.txt"
+    ],
+    "expected_sections": [
+      "机台热稳定性"
+    ],
+    "keywords": [
+      "热漂移"
+    ]
+  },
+  {
+    "id": "q04",
+    "category": "paraphrase",
+    "question": "洗完的片子干了以后留下印子",
+    "sources": [
+      "wet_clean.txt"
+    ],
+    "expected_sections": [
+      "干燥方式"
+    ],
+    "keywords": [
+      "水痕"
+    ]
+  },
+  {
+    "id": "q05",
+    "category": "paraphrase",
+    "question": "片边缘脏、中心干净，一般从哪里查起",
+    "sources": [
+      "particle_control.txt"
+    ],
+    "expected_sections": [
+      "来源定位"
+    ],
+    "keywords": [
+      "边缘"
+    ]
+  },
+  {
+    "id": "q06",
+    "category": "paraphrase",
+    "question": "仪器本身不准，把工艺漂移误判了怎么避免",
+    "sources": [
+      "metrology_inline.txt"
+    ],
+    "expected_sections": [
+      "量测校准"
+    ],
+    "keywords": [
+      "校准"
+    ]
+  },
+  {
+    "id": "q07",
+    "category": "paraphrase",
+    "question": "同一片测两次结果差很多，先怀疑哪一环",
+    "sources": [
+      "metrology_inline.txt"
+    ],
+    "expected_sections": [
+      "测量系统分析"
+    ],
+    "keywords": [
+      "重复性"
+    ]
+  },
+  {
+    "id": "q08",
+    "category": "paraphrase",
+    "question": "产线要不要停，按什么标准判断",
+    "sources": [
+      "alarm_escalation.txt"
+    ],
+    "expected_sections": [
+      "停线条件"
+    ],
+    "keywords": [
+      "停线"
+    ]
+  },
+  {
+    "id": "d01",
+    "category": "distractor",
+    "question": "CMP 抛光时压力设置偏高会怎样",
+    "sources": [
+      "cmp_polishing.txt"
+    ],
+    "expected_sections": [
+      "抛光压力与转速"
+    ],
+    "parameter_type": "pressure",
+    "keywords": [
+      "抛光压力"
+    ]
+  },
+  {
+    "id": "d02",
+    "category": "distractor",
+    "question": "CVD 腔体压力偏低会造成台阶覆盖不足吗",
+    "sources": [
+      "cvd_equipment.txt"
+    ],
+    "expected_sections": [
+      "腔体压力"
+    ],
+    "parameter_type": "pressure",
+    "keywords": [
+      "台阶覆盖率"
+    ]
+  },
+  {
+    "id": "d03",
+    "category": "distractor",
+    "question": "刻蚀压力异常需要一起看真空系统吗",
+    "sources": [
+      "etch_equipment.txt"
+    ],
+    "expected_sections": [
+      "压力异常"
+    ],
+    "parameter_type": "pressure",
+    "keywords": [
+      "真空系统"
+    ]
+  },
+  {
+    "id": "d04",
+    "category": "distractor",
+    "question": "湿法清洗里温度如何影响清洗能力",
+    "sources": [
+      "wet_clean.txt"
+    ],
+    "expected_sections": [
+      "药液浓度与温度"
+    ],
+    "parameter_type": "temperature",
+    "keywords": [
+      "药液浓度"
+    ]
+  },
+  {
+    "id": "d05",
+    "category": "distractor",
+    "question": "光刻前烘温度偏高会让感光度怎么变",
+    "sources": [
+      "litho_track.txt"
+    ],
+    "expected_sections": [
+      "烘烤温度"
+    ],
+    "parameter_type": "temperature",
+    "keywords": [
+      "感光度"
+    ]
+  },
+  {
+    "id": "d06",
+    "category": "distractor",
+    "question": "扩散炉气体流量波动会反映成什么参数偏移",
+    "sources": [
+      "diffusion_furnace.txt"
+    ],
+    "expected_sections": [
+      "气体流量"
+    ],
+    "keywords": [
+      "方块电阻"
+    ]
+  },
+  {
+    "id": "m01",
+    "category": "multi_hop",
+    "question": "刻蚀腔体温度和压力同时报异常，先做什么",
+    "sources": [
+      "equipment_alarm.txt",
+      "etch_equipment.txt"
+    ],
+    "expected_sections": [
+      "多种异常同时出现",
+      "温度异常"
+    ],
+    "keywords": [
+      "温度异常"
+    ]
+  },
+  {
+    "id": "m02",
+    "category": "multi_hop",
+    "question": "CMP 出现划伤同时颗粒也超标，怎么排查",
+    "sources": [
+      "cmp_polishing.txt",
+      "particle_control.txt"
+    ],
+    "expected_sections": [
+      "表面划伤",
+      "来源定位"
+    ],
+    "keywords": [
+      "划伤"
+    ]
+  },
+  {
+    "id": "m03",
+    "category": "multi_hop",
+    "question": "异常发生后什么情况要停线、复机要满足什么条件",
+    "sources": [
+      "alarm_escalation.txt"
+    ],
+    "expected_sections": [
+      "停线条件",
+      "复机条件"
+    ],
+    "keywords": [
+      "停线"
+    ]
+  },
+  {
+    "id": "m04",
+    "category": "multi_hop",
+    "question": "量测出现离群值要不要直接删掉",
+    "sources": [
+      "metrology_inline.txt"
+    ],
+    "expected_sections": [
+      "数据异常处理"
+    ],
+    "keywords": [
+      "离群值"
+    ]
   }
 ]
