@@ -276,7 +276,7 @@ CI 用确定性嵌入器跑回归（`make rag-regression`），门禁 `--fail-un
 复现：
 
 ```bash
-make rag-regression     # 确定性嵌入器，CI 同款，约 3 s
+make rag-regression     # 确定性嵌入器，CI 同款，约 1.7 s
 make rag-eval           # 真实语义模型，需先装 sentence-transformers
 ```
 
