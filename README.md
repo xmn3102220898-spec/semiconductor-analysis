@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/xmn3102220898-spec/semiconductor-analysis/actions/workflows/ci.yml/badge.svg)](https://github.com/xmn3102220898-spec/semiconductor-analysis/actions/workflows/ci.yml)
 ![Python](https://img.shields.io/badge/python-3.12-3776ab)
-![Tests](https://img.shields.io/badge/tests-72%20passed-brightgreen)
+![Tests](https://img.shields.io/badge/tests-74%20passed-brightgreen)
 ![Core coverage](https://img.shields.io/badge/core%20coverage-86.47%25-2ea44f)
 ![Docker](https://img.shields.io/badge/docker--compose-smoke-2496ed)
 
@@ -151,7 +151,7 @@ LLM 主链路：
 
 | 指标 | 当前结果 | 测量方法 |
 |---|---:|---|
-| 自动化测试 | 72 / 72 通过 | `python scripts/dev.py check` |
+| 自动化测试 | 74 / 74 通过 | `python scripts/dev.py check` |
 | 核心分析行覆盖率 | 86.47% | 标准库 `trace`，阈值 80% |
 | 30 条 RAG recall@3 | 1.0 | `make rag-eval` |
 | RAG 真实模型 P95 | 约 13.15 ms | 30 条评估，排除首次构建 |

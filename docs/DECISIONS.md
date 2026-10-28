@@ -35,4 +35,4 @@
 | `GET /diagnose` 只读、`POST /diagnose` 落库 | 保留 GET 写历史，或加 `persist` 查询参数 | GET 必须幂等，刷新页面不应产生新的诊断记录；写操作走 POST 语义正确 | 需要调用方区分两个方法，OpenAPI 中多一个端点 | 若前端只做预览，应使用 GET 并自行决定何时 POST |
 | 诊断检索按 `equipment_type ∈ {当前设备, general}` 过滤，无命中再放宽 | 全部不做过滤，或严格只取同设备 | 设备专属知识优先，同时保留对任何设备都成立的通用规则；空结果时才降级，避免上下文为空 | 放宽时相关性下降，需要 `filters_relaxed` 字段暴露 | 知识库按设备拆分粒度不足时，过滤收益有限 |
 | 索引新鲜度用 mtime+size 签名，热路径不算哈希 | 每次查询重算全库 SHA-256 | 每次检索只做一次 stat，把哈希留给构建期；编辑、checkout、覆盖写入都能被签名捕获 | 同尺寸且 mtime 被刻意保留的修改可能漏检 | 高完整性场景应提供 `verify` 强制按哈希校验 |
-
+| `POST /diagnose` 的 `persisted` 反映实际写入结果 | 直接回显请求里的 `persist` 开关 | 去重或校验拦截时并没有新增记录，字段若仍为 true 会误导调用方与看板统计 | `save_diagnosis` 需要返回布尔值，调用方要区分“请求落库”和“确实落库” | 只关心是否调用过写接口的场景，需要另看 `diagnosis_saved` / `diagnosis_deduplicated` 日志 |

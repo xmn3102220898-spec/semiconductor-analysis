@@ -555,16 +555,20 @@ def _run_diagnosis(
         ) from exc
 
     if persist:
-        save_diagnosis(
-            equipment_id,
-            score,
-            risk_level,
-            report_result["report"],
-            report_result["references"],
-            report_result["report_json"],
-            report_result["provider"],
-            report_result["fallback"],
+        persisted = bool(
+            save_diagnosis(
+                equipment_id,
+                score,
+                risk_level,
+                report_result["report"],
+                report_result["references"],
+                report_result["report_json"],
+                report_result["provider"],
+                report_result["fallback"],
+            )
         )
+    else:
+        persisted = False
 
     return {
         "equipment": equipment_id,
@@ -577,7 +581,7 @@ def _run_diagnosis(
         "retrieval": report_result["retrieval"],
         "provider": report_result["provider"],
         "fallback": report_result["fallback"],
-        "persisted": persist,
+        "persisted": persisted,
         "latency_ms": report_result["latency_ms"],
         "prompt_tokens": report_result["prompt_tokens"],
         "completion_tokens": report_result["completion_tokens"],

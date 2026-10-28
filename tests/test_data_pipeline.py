@@ -1294,6 +1294,65 @@ class DashboardTests(unittest.TestCase):
         self.assertTrue(response.json()["persisted"])
         save_mock.assert_called_once()
 
+    def test_post_diagnose_reports_skipped_persist(self) -> None:
+        """去重跳过时 persisted 必须是 False，不能只反映“请求了落库”。"""
+
+        import app.api.main as api_module
+
+        report_result = {
+            "report": "模拟报告",
+            "report_json": {"equipment_id": "ETCH-02"},
+            "references": [],
+            "retrieval": {
+                "strategy": "hybrid_vector_bm25",
+                "hits": [],
+                "no_match": True,
+            },
+            "provider": "rule-fallback",
+            "fallback": True,
+            "latency_ms": 1.0,
+            "prompt_tokens": 0,
+            "completion_tokens": 0,
+        }
+
+        with patch.object(
+            api_module.llm_reporter,
+            "generate_report_result",
+            return_value=report_result,
+        ), patch.object(api_module, "save_diagnosis", return_value=False):
+            response = self.client.post("/diagnose/ETCH-02")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(response.json()["persisted"])
+
+    def test_save_diagnosis_reports_deduplicated_write(self) -> None:
+        from app.data import history
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            database_file = Path(temp_dir) / "history.db"
+            with patch.object(history, "DB_NAME", database_file):
+                history.init_database()
+                first = history.save_diagnosis(
+                    "ETCH-02", 45, "高风险", "首次报告"
+                )
+                second = history.save_diagnosis(
+                    "ETCH-02", 45, "高风险", "同分同风险，应被去重"
+                )
+                changed = history.save_diagnosis(
+                    "ETCH-02", 80, "关注", "评分变化，应写入"
+                )
+
+            self.assertTrue(first)
+            self.assertFalse(second)
+            self.assertTrue(changed)
+
+            with closing(sqlite3.connect(database_file)) as conn:
+                rows = conn.execute(
+                    "SELECT health_score FROM diagnosis_history ORDER BY id"
+                ).fetchall()
+
+        self.assertEqual([row[0] for row in rows], [45, 80])
+
     def test_invalid_api_equipment_returns_404(self) -> None:
         response = self.client.get("/health/NOT-FOUND")
 

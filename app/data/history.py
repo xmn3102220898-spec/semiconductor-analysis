@@ -92,7 +92,10 @@ def save_diagnosis(
     provider=None,
     fallback=False,
 ):
-    """保存有效诊断记录，跳过无效评分和重复记录。"""
+    """保存有效诊断记录，跳过无效评分和重复记录。
+
+    返回 True 表示确实写入了一行，False 表示被校验拦截或按去重规则跳过。
+    """
 
     # 第一层防护：设备编号不能为空
     if not isinstance(equipment, str) or not equipment.strip():
@@ -103,7 +106,7 @@ def save_diagnosis(
                 "reason": "empty_equipment",
             },
         )
-        return
+        return False
 
     # 第二层防护：评分必须是 0～100 的有效数值
     # bool 是 int 的子类，因此这里明确排除 True / False
@@ -121,7 +124,7 @@ def save_diagnosis(
                 "reason": "invalid_score",
             },
         )
-        return
+        return False
 
     # 第三层防护：风险等级必须合法
     if risk_level not in VALID_RISK_LEVELS:
@@ -134,7 +137,7 @@ def save_diagnosis(
                 "reason": "invalid_risk_level",
             },
         )
-        return
+        return False
 
     health_score = int(health_score)
 
@@ -166,7 +169,7 @@ def save_diagnosis(
                         "health_score": health_score,
                     },
                 )
-                return
+                return False
 
         cursor.execute("""
             INSERT INTO diagnosis_history
@@ -202,6 +205,7 @@ def save_diagnosis(
                 "risk_level": risk_level,
             },
         )
+        return True
 
 
 def get_health_history(equipment):
