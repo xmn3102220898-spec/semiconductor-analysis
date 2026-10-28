@@ -13,6 +13,21 @@
 > 本项目未接入真实 MES、SCADA、传感器或工艺配方。所有设备、批次、阈值、
 > 知识文档和评估问题均为模拟内容，不代表真实晶圆厂生产经验。
 
+## 界面
+
+设备仪表盘：健康评分、逐事件扣分、批次趋势与异常记录同源。
+
+![设备仪表盘](docs/screenshots/dashboard.png)
+
+诊断详情：报告正文里的引用标记可回溯到真实 chunk，下方列出检索得分与原文入口。
+截图中的 `rules_fallback` 是未配置模型密钥时的确定性降级路径，属预期行为。
+
+![诊断详情](docs/screenshots/diagnosis.png)
+
+| 诊断历史 | 知识片段原文 |
+|---|---|
+| ![诊断历史](docs/screenshots/history.png) | ![知识片段](docs/screenshots/knowledge.png) |
+
 ## 架构
 
 ```mermaid
