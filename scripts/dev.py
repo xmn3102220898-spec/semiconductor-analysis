@@ -20,7 +20,16 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "command",
-        choices=("install", "run", "test", "lint", "bench", "check"),
+        choices=(
+            "install",
+            "run",
+            "test",
+            "lint",
+            "bench",
+            "rag-eval",
+            "rag-regression",
+            "check",
+        ),
     )
     args = parser.parse_args()
 
@@ -62,12 +71,56 @@ def main() -> int:
             ]
         )
     if args.command == "bench":
-        return run_command(
+        first = run_command(
             [
                 sys.executable,
                 "-X",
                 "utf8",
                 "scripts/bench.py",
+            ]
+        )
+        if first:
+            return first
+        second = run_command(
+            [
+                sys.executable,
+                "-X",
+                "utf8",
+                "scripts/bench_scale.py",
+            ]
+        )
+        if second:
+            return second
+        return run_command(
+            [
+                sys.executable,
+                "-X",
+                "utf8",
+                "scripts/bench_api.py",
+            ]
+        )
+    if args.command == "rag-eval":
+        return run_command(
+            [
+                sys.executable,
+                "-X",
+                "utf8",
+                "scripts/evaluate_rag.py",
+                "--fail-under",
+                "0.85",
+            ]
+        )
+    if args.command == "rag-regression":
+        return run_command(
+            [
+                sys.executable,
+                "-X",
+                "utf8",
+                "scripts/evaluate_rag.py",
+                "--embedder",
+                "deterministic",
+                "--fail-under",
+                "0.85",
             ]
         )
 

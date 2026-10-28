@@ -53,6 +53,26 @@
             line-height: 1.75;
         }
 
+        .references {
+            margin-top: 20px;
+            display: grid;
+            gap: 10px;
+        }
+
+        .reference {
+            padding: 12px 14px;
+            background: #f8fafc;
+            border: 1px solid #e4eaf2;
+            border-radius: 8px;
+            font-size: 13px;
+            line-height: 1.7;
+        }
+
+        .reference a {
+            color: #2563eb;
+            text-decoration: none;
+        }
+
         .back {
             display: inline-block;
             margin-bottom: 16px;
@@ -73,9 +93,33 @@
                 <span>健康评分：{{ detail.health_score }}</span>
                 <span>风险等级：{{ detail.risk_level }}</span>
                 <span>时间：{{ detail.time }}</span>
+                {% if provider %}
+                <span>生成方式：{{ provider }}</span>
+                {% endif %}
+                {% if fallback %}
+                <span>已启用规则降级</span>
+                {% endif %}
             </div>
 
             <pre>{{ report }}</pre>
+
+            <div class="references">
+                {% for reference in references %}
+                <div class="reference">
+                    <strong>{{ reference.source }} / {{ reference.section }}</strong><br>
+                    <a
+                        href="/knowledge/chunk/{{ reference.chunk_id }}"
+                        target="_blank"
+                    >打开 chunk 原文</a>
+                    · score {{ reference.score }}<br>
+                    {{ reference.excerpt }}
+                </div>
+                {% else %}
+                <div class="reference">
+                    该历史报告没有保存检索引用。
+                </div>
+                {% endfor %}
+            </div>
         </section>
     </main>
 </body>

@@ -8,6 +8,7 @@ __pycache__
 *.db-journal
 .env
 output/*
+data/rag_index/*
 docs/*
 tests/*
 scripts/*

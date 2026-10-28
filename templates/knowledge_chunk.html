@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>知识原文片段</title>
+    <style>
+        body {
+            margin: 0;
+            background: #f3f6fb;
+            color: #172033;
+            font-family: "Microsoft YaHei", "Segoe UI", Arial, sans-serif;
+        }
+
+        .container {
+            max-width: 900px;
+            margin: 32px auto;
+            padding: 0 24px;
+        }
+
+        .panel {
+            background: white;
+            border: 1px solid #e4eaf2;
+            border-radius: 14px;
+            padding: 26px;
+            box-shadow: 0 8px 24px rgba(15, 23, 42, 0.05);
+        }
+
+        h1 {
+            margin: 0 0 8px;
+            font-size: 21px;
+        }
+
+        .muted {
+            color: #64748b;
+            font-size: 13px;
+            line-height: 1.8;
+        }
+
+        .content {
+            margin-top: 22px;
+            padding: 20px;
+            border-left: 4px solid #2563eb;
+            background: #f8fafc;
+            border-radius: 8px;
+            line-height: 1.9;
+            white-space: pre-wrap;
+        }
+    </style>
+</head>
+<body>
+    <main class="container">
+        <section class="panel">
+            <h1>{{ chunk.title }} / {{ chunk.section }}</h1>
+            <div class="muted">
+                来源：{{ chunk.source }}<br>
+                chunk_id：{{ chunk.chunk_id }}<br>
+                原文位置：{{ chunk.start_char }}～{{ chunk.end_char }}<br>
+                参数类型：{{ chunk.parameter_type }} ·
+                设备类型：{{ chunk.equipment_type }}
+            </div>
+            <div class="content">{{ chunk.content }}</div>
+        </section>
+    </main>
+</body>
+</html>

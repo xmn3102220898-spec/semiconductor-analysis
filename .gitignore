@@ -20,6 +20,8 @@ dist/
 
 output/*.png
 output/*.xlsx
+output/rag_evaluation.json
+data/rag_index/
 
 .vscode/
 .idea/

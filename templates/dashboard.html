@@ -289,6 +289,17 @@
             position: relative;
         }
 
+        .chart-loading {
+            position: absolute;
+            inset: 0;
+            display: grid;
+            place-items: center;
+            color: var(--muted);
+            font-size: 13px;
+            background: rgba(255, 255, 255, 0.72);
+            z-index: 2;
+        }
+
         .trend-kicker {
             color: var(--muted);
             font-size: 12px;
@@ -425,6 +436,55 @@
             padding: 28px;
         }
 
+        .support-grid {
+            display: grid;
+            grid-template-columns: 1.25fr 0.75fr;
+            gap: 16px;
+            margin-top: 18px;
+        }
+
+        .support-card {
+            background: var(--panel);
+            border: 1px solid var(--line);
+            border-radius: 14px;
+            padding: 22px;
+            box-shadow: 0 8px 24px rgba(15, 23, 42, 0.05);
+        }
+
+        .support-card h2 {
+            margin: 0 0 12px;
+            font-size: 17px;
+        }
+
+        .history-list,
+        .citation-list {
+            display: grid;
+            gap: 9px;
+        }
+
+        .history-item,
+        .citation-placeholder {
+            display: flex;
+            justify-content: space-between;
+            gap: 12px;
+            padding: 11px 12px;
+            background: #f8fafc;
+            border: 1px solid var(--line);
+            border-radius: 8px;
+            font-size: 13px;
+        }
+
+        .history-item a {
+            color: var(--blue);
+            text-decoration: none;
+        }
+
+        .citation-placeholder {
+            display: block;
+            color: var(--muted);
+            line-height: 1.7;
+        }
+
         .footer {
             text-align: center;
             color: #94a3b8;
@@ -470,6 +530,10 @@
             }
 
             .analytics-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .support-grid {
                 grid-template-columns: 1fr;
             }
 
@@ -536,7 +600,8 @@
 
             <div class="source-meta">
                 数据源：<strong>{{ source_info.name }}</strong><br>
-                文件更新：{{ source_info.updated_at }}
+                文件更新：{{ source_info.updated_at }} ·
+                数据质量：{{ data_quality.valid_records }}/{{ data_quality.total_records }}
             </div>
         </section>
 
@@ -553,7 +618,8 @@
                     {{ data.health_score }}<span style="font-size:15px;"> / 100</span>
                 </div>
                 <div class="card-note">
-                    共扣除 {{ 100 - data.health_score }} 分，评分与异常统计同源
+                    共扣除 {{ score_breakdown.total_penalty }} 分，
+                    评分与异常统计同源
                 </div>
             </article>
 
@@ -581,7 +647,12 @@
             <span>平均温度 {{ stats.average_temperature }} ℃</span>
             <span>平均压力 {{ stats.average_pressure }} kPa</span>
             <span>平均良率 {{ stats.average_yield }}%</span>
-            <span>规则：温度 &gt; 100℃ · 压力 &gt; 120kPa · 良率 &lt; 90%</span>
+            <span>
+                设备类型：{{ stats.equipment_type }} ·
+                规则：温度 &gt; {{ stats.thresholds.temperature_c }}℃ ·
+                压力 &gt; {{ stats.thresholds.pressure_kpa }}kPa ·
+                良率 &lt; {{ stats.thresholds.yield_pct }}%
+            </span>
         </div>
 
         <section class="alert
@@ -616,6 +687,9 @@
                     <span class="trend-kicker">{{ history_count }} 个生产批次</span>
                 </div>
                 <div class="chart-box">
+                    <div class="chart-loading" id="chartLoading">
+                        正在加载趋势图…
+                    </div>
                     <canvas id="healthChart"></canvas>
                 </div>
             </article>
@@ -695,6 +769,7 @@
                             <th>批次编号</th>
                             <th>异常类型</th>
                             <th>检测数值</th>
+                            <th>规则扣分</th>
                             <th>状态</th>
                         </tr>
                     </thead>
@@ -704,11 +779,14 @@
                             <td class="batch">{{ event.batch_id }}</td>
                             <td>{{ event.type }}</td>
                             <td>{{ event.value }}</td>
+                            <td>
+                                -{{ score_breakdown.deductions[loop.index0].penalty }}
+                            </td>
                             <td><span class="status">待核查</span></td>
                         </tr>
                         {% else %}
                         <tr>
-                            <td class="empty" colspan="4">
+                            <td class="empty" colspan="5">
                                 当前设备未检测到异常事件
                             </td>
                         </tr>
@@ -716,6 +794,38 @@
                     </tbody>
                 </table>
             </div>
+        </section>
+
+        <section class="support-grid">
+            <article class="support-card">
+                <h2>最近诊断报告</h2>
+                <div class="history-list">
+                    {% for record in records[:5] %}
+                    <div class="history-item">
+                        <span>
+                            {{ record.time }} · {{ record.score }} 分 ·
+                            {{ record.risk }}
+                        </span>
+                        <a href="/diagnosis_detail/{{ record.id }}">查看详情</a>
+                    </div>
+                    {% else %}
+                    <div class="citation-placeholder">
+                        暂无已保存的诊断报告。异常分析仍可正常查看。
+                    </div>
+                    {% endfor %}
+                </div>
+            </article>
+
+            <article class="support-card">
+                <h2>检索引用</h2>
+                <div class="citation-list">
+                    <div class="citation-placeholder">
+                        统一 RAG 检索已接入，诊断接口会返回真实
+                        chunk_id、来源和原文位置。仪表盘不在每次打开时
+                        加载向量模型，因此这里不自动展示引用。
+                    </div>
+                </div>
+            </article>
         </section>
 
         <footer class="footer">
@@ -774,6 +884,7 @@
                     return;
                 }
 
+                document.getElementById("chartLoading")?.remove();
                 new Chart(canvas, {
                     type: "line",
                     data: {

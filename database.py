@@ -6,7 +6,9 @@ from app.data.history import (
     get_diagnosis_detail,
     get_diagnosis_records,
     get_health_history,
+    get_llm_call_stats,
     init_database,
+    record_llm_call,
     save_diagnosis,
 )
 
@@ -16,7 +18,9 @@ __all__ = [
     "get_diagnosis_detail",
     "get_diagnosis_records",
     "get_health_history",
+    "get_llm_call_stats",
     "init_database",
+    "record_llm_call",
     "save_diagnosis",
 ]
 

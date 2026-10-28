@@ -1,8 +1,4 @@
-"""基于生产数据和知识库生成 DeepSeek 诊断报告。
-
-大模型、向量模型和知识库采用懒加载，避免普通仪表盘请求或应用启动
-时访问外部网络。
-"""
+"""Controlled LLM diagnosis with schema validation and deterministic fallback."""
 
 from __future__ import annotations
 
@@ -11,207 +7,381 @@ from typing import Any
 
 from app.analysis.anomalies import build_equipment_analysis
 from app.analysis.health import (
-    calculate_health_score_from_anomalies,
+    build_health_score_breakdown,
     risk_level_from_score,
 )
 from app.config import settings
+from app.data.history import record_llm_call
+from app.llm.prompting import render_prompt
+from app.llm.schema import (
+    DiagnosticReportOutput,
+    ReportValidationError,
+    validate_diagnostic_report,
+)
 from app.observability import get_logger
+from app.rag.pipeline import get_knowledge_pipeline
 
 
 logger = get_logger(__name__)
-
 _client: Any = None
-_documents: list[dict[str, Any]] | None = None
-_embedding_model: Any = None
-_embeddings: Any = None
 
 
 def _get_client() -> Any:
     global _client
-
     if _client is None:
         from openai import OpenAI
 
         if not settings.deepseek_api_key:
-            raise RuntimeError(
-                "未配置 DEEPSEEK_API_KEY，无法生成大模型诊断报告。"
-            )
-
+            raise RuntimeError("未配置 DEEPSEEK_API_KEY")
         _client = OpenAI(
             api_key=settings.deepseek_api_key,
             base_url=settings.deepseek_base_url,
         )
-
     return _client
 
 
-def _get_rag_resources() -> tuple[
-    list[dict[str, Any]],
-    Any,
-    Any,
+def _facts_and_retrieval(equipment_id: str) -> tuple[
+    dict[str, Any],
+    dict[str, Any],
+    str,
 ]:
-    """首次调用报告时再加载知识库和向量模型。"""
-    global _documents, _embedding_model, _embeddings
-
-    if _documents is None or _embedding_model is None or _embeddings is None:
-        from sentence_transformers import SentenceTransformer
-
-        from app.rag.semantic import build_embeddings, load_documents
-
-        _documents = load_documents()
-        _embedding_model = SentenceTransformer(settings.embedding_model)
-        _embeddings = build_embeddings(_documents, _embedding_model)
-
-    return _documents, _embedding_model, _embeddings
-
-
-def build_report_prompt(equipment_id: str) -> str:
-    """组装包含生产数据、评分和 RAG 检索结果的分析提示词。"""
-    from app.rag.semantic import search_knowledge
-
     analysis = build_equipment_analysis(equipment_id)
     anomalies = analysis["anomalies"]
-    stats = analysis["stats"]
-    score = calculate_health_score_from_anomalies(anomalies)
+    breakdown = build_health_score_breakdown(anomalies)
+    score = breakdown["final_score"]
     risk_level = risk_level_from_score(score)
-
-    anomaly_text = "\n".join(
-        (
-            f"批次：{item['batch_id']}；"
-            f"异常类型：{item['type']}；"
-            f"异常值：{item['value']}"
-        )
-        for item in anomalies
-    )
-    if not anomaly_text:
-        anomaly_text = "当前规则未识别到异常事件。"
-
     question = (
         f"{equipment_id} 设备异常分析："
         f"{'、'.join(item['type'] for item in anomalies) or '无异常'}；"
-        "温度、压力、良率"
+        "温度、压力、良率、检查建议"
+    )
+    equipment_type = analysis["stats"]["equipment_type"]
+    # 设备专属知识优先；通用（general）知识对任何设备都成立，必须保留。
+    filters: dict[str, list[str]] = {
+        "equipment_type": [equipment_type, "general"],
+    }
+    try:
+        pipeline = get_knowledge_pipeline()
+        retrieval = pipeline.search(
+            question,
+            top_k=settings.rag_top_k,
+            filters=filters,
+        )
+        if not retrieval["hits"]:
+            # 过滤后无命中时放宽，宁愿召回弱相关知识，也不要空上下文。
+            relaxed = pipeline.search(
+                question,
+                top_k=settings.rag_top_k,
+            )
+            if relaxed["hits"]:
+                retrieval = {
+                    **relaxed,
+                    "filters_relaxed": True,
+                    "filters": filters,
+                }
+        retrieval.setdefault("filters_relaxed", False)
+        contexts = pipeline.build_context(retrieval["hits"])
+    except Exception:
+        logger.exception(
+            "rag_retrieval_failed_for_report",
+            extra={
+                "event": "rag_retrieval_failed_for_report",
+                "equipment": equipment_id,
+            },
+        )
+        retrieval = {
+            "question": question,
+            "strategy": "unavailable",
+            "hits": [],
+            "no_match": True,
+            "filters": filters,
+            "filters_relaxed": False,
+            "score_distribution": [],
+        }
+        contexts = "无匹配知识依据。"
+    batch_ids = [row[1] for row in analysis["records"]]
+    chunk_ids = [hit["chunk_id"] for hit in retrieval["hits"]]
+    facts = {
+        "equipment_id": equipment_id,
+        "health_score": score,
+        "risk_level": risk_level,
+        "simulated_data": True,
+        "equipment_type": analysis["stats"]["equipment_type"],
+        "thresholds": analysis["stats"]["thresholds"],
+        "stats": analysis["stats"],
+        "anomalies": anomalies,
+        "score_breakdown": breakdown,
+        "allowed_batch_ids": batch_ids,
+        "allowed_chunk_ids": chunk_ids,
+        "no_knowledge_match": retrieval["no_match"],
+    }
+    return facts, retrieval, contexts
+
+
+def build_report_prompt(equipment_id: str) -> str:
+    facts, _, contexts = _facts_and_retrieval(equipment_id)
+    return render_prompt(facts, contexts)
+
+
+def _relevant_chunk_ids(
+    retrieval: dict[str, Any],
+    metric: str,
+) -> list[str]:
+    matches = [
+        hit["chunk_id"]
+        for hit in retrieval["hits"]
+        if hit["parameter_type"] in {metric, "general"}
+    ]
+    return matches[:2]
+
+
+def _fallback_report(
+    facts: dict[str, Any],
+    retrieval: dict[str, Any],
+    reason: str,
+) -> DiagnosticReportOutput:
+    anomalies = facts["anomalies"]
+    findings = []
+    checks = []
+    category_map = {
+        "temperature": "temperature",
+        "pressure": "pressure",
+        "yield": "yield",
+    }
+
+    for anomaly in anomalies:
+        metric = anomaly["metric"]
+        chunk_ids = _relevant_chunk_ids(retrieval, metric)
+        findings.append({
+            "category": category_map[metric],
+            "summary": (
+                f"{anomaly['batch_id']} 的 {anomaly['type']} "
+                f"检测值为 {anomaly['value']}，阈值为 "
+                f"{anomaly['threshold']:g}。"
+            ),
+            "batch_ids": [anomaly["batch_id"]],
+            "chunk_ids": chunk_ids,
+        })
+        checks.append({
+            "action": (
+                f"优先核查 {anomaly['batch_id']} 对应参数的"
+                "传感器、控制回路、报警记录和工艺设定值。"
+            ),
+            "priority": "high",
+            "batch_ids": [anomaly["batch_id"]],
+            "chunk_ids": chunk_ids,
+        })
+
+    if not findings:
+        findings.append({
+            "category": "process",
+            "summary": "当前模拟数据未触发异常规则。",
+            "batch_ids": [],
+            "chunk_ids": (
+                [retrieval["hits"][0]["chunk_id"]]
+                if retrieval["hits"]
+                else []
+            ),
+        })
+    if not checks:
+        checks.append({
+            "action": (
+                "继续监测关键参数，并结合设备报警和维护记录"
+                "确认数据完整性。"
+            ),
+            "priority": "low",
+            "batch_ids": [],
+            "chunk_ids": (
+                [retrieval["hits"][0]["chunk_id"]]
+                if retrieval["hits"]
+                else []
+            ),
+        })
+
+    return DiagnosticReportOutput.model_validate({
+        "equipment_id": facts["equipment_id"],
+        "health_score": facts["health_score"],
+        "risk_level": facts["risk_level"],
+        "simulated_data": True,
+        "summary": (
+            f"{facts['equipment_id']} 共 {facts['stats']['record_count']} "
+            f"个模拟批次，检测到 {facts['stats']['total']} 个异常事件，"
+            f"健康评分 {facts['health_score']}，风险等级 "
+            f"{facts['risk_level']}。"
+        ),
+        "findings": findings,
+        "recommended_checks": checks,
+        "limitations": [
+            "大模型不可用或输出未通过校验，本报告由确定性规则降级生成。",
+            reason,
+            "生产数据、阈值和知识库均为模拟内容，需由具备资质的人员确认。",
+        ],
+    })
+
+
+def render_report_markdown(report: dict[str, Any]) -> str:
+    lines = [
+        f"# {report['equipment_id']} 设备诊断报告",
+        "",
+        report["summary"],
+        "",
+        "## 分析结论",
+    ]
+    for finding in report["findings"]:
+        citations = ", ".join(finding["chunk_ids"])
+        suffix = f" [引用：{citations}]" if citations else ""
+        lines.append(f"- {finding['summary']}{suffix}")
+    lines.extend(["", "## 建议检查"])
+    for check in report["recommended_checks"]:
+        citations = ", ".join(check["chunk_ids"])
+        suffix = f" [引用：{citations}]" if citations else ""
+        lines.append(
+            f"- [{check['priority']}] {check['action']}{suffix}"
+        )
+    lines.extend(["", "## 边界与限制"])
+    lines.extend(f"- {item}" for item in report["limitations"])
+    return "\n".join(lines)
+
+
+def _response_tokens(response: Any) -> tuple[int | None, int | None]:
+    usage = getattr(response, "usage", None)
+    return (
+        getattr(usage, "prompt_tokens", None),
+        getattr(usage, "completion_tokens", None),
     )
 
-    documents, model, embeddings = _get_rag_resources()
-    knowledge = search_knowledge(
-        question,
-        documents,
-        embeddings,
-        model,
-    )
-    logger.info(
-        "knowledge_retrieval_completed",
-        extra={
-            "event": "knowledge_retrieval_completed",
-            "equipment": equipment_id,
-            "chunk_count": len(knowledge),
-            "top_score": knowledge[0]["score"] if knowledge else None,
-        },
-    )
-    knowledge_text = "\n".join(
-        item["content"] for item in knowledge
-    )
 
-    return f"""
-你是一名半导体设备分析工程师。
+def generate_report_result(equipment_id: str) -> dict[str, Any]:
+    started_at = time.perf_counter()
+    facts, retrieval, contexts = _facts_and_retrieval(equipment_id)
+    feedback = ""
+    last_error = ""
+    prompt_tokens_total = 0
+    completion_tokens_total = 0
+    structured: DiagnosticReportOutput | None = None
+    provider = "rules_fallback"
 
-请根据以下模拟生产数据生成设备诊断报告。
+    for attempt_index in range(settings.llm_max_retries + 1):
+        prompt = render_prompt(facts, contexts, feedback)
+        attempt_started = time.perf_counter()
+        try:
+            response = _get_client().chat.completions.create(
+                model=settings.deepseek_model,
+                messages=[
+                    {
+                        "role": "system",
+                        "content": (
+                            "你是半导体设备分析助手。"
+                            "只输出符合 Schema 的 JSON。"
+                        ),
+                    },
+                    {"role": "user", "content": prompt},
+                ],
+                temperature=settings.llm_temperature,
+                response_format={"type": "json_object"},
+            )
+            prompt_tokens, completion_tokens = _response_tokens(response)
+            prompt_tokens_total += int(prompt_tokens or 0)
+            completion_tokens_total += int(completion_tokens or 0)
+            structured = validate_diagnostic_report(
+                response.choices[0].message.content,
+                facts,
+            )
+            provider = "deepseek"
+            record_llm_call(
+                equipment=equipment_id,
+                provider=provider,
+                success=True,
+                fallback=False,
+                latency_ms=(time.perf_counter() - attempt_started) * 1000,
+                prompt_tokens=prompt_tokens,
+                completion_tokens=completion_tokens,
+            )
+            break
+        except ReportValidationError as exc:
+            last_error = str(exc)
+            feedback = last_error
+            record_llm_call(
+                equipment=equipment_id,
+                provider="deepseek_rejected",
+                success=False,
+                fallback=False,
+                latency_ms=(time.perf_counter() - attempt_started) * 1000,
+                prompt_tokens=prompt_tokens,
+                completion_tokens=completion_tokens,
+                validation_error=last_error,
+            )
+            logger.warning(
+                "llm_report_rejected",
+                extra={
+                    "event": "llm_report_rejected",
+                    "equipment": equipment_id,
+                    "attempt": attempt_index + 1,
+                    "validation_error": last_error,
+                },
+            )
+        except Exception as exc:
+            last_error = str(exc)
+            logger.exception(
+                "llm_report_failed",
+                extra={
+                    "event": "llm_report_failed",
+                    "equipment": equipment_id,
+                    "attempt": attempt_index + 1,
+                },
+            )
+            break
 
-设备：
-{equipment_id}
+    if structured is None:
+        provider = "rules_fallback"
+        structured = _fallback_report(
+            facts,
+            retrieval,
+            last_error or "大模型不可用",
+        )
+        record_llm_call(
+            equipment=equipment_id,
+            provider=provider,
+            success=True,
+            fallback=True,
+            latency_ms=(time.perf_counter() - started_at) * 1000,
+            prompt_tokens=prompt_tokens_total or None,
+            completion_tokens=completion_tokens_total or None,
+            validation_error=last_error or "LLM_UNAVAILABLE",
+        )
 
-健康评分：
-{score}/100
-
-风险等级：
-{risk_level}
-
-生产批次数量：
-{stats['record_count']}
-
-异常事件数量：
-{stats['total']}
-
-异常记录：
-{anomaly_text}
-
-参考知识：
-{knowledge_text}
-
-要求：
-1. 输出结构化诊断报告。
-2. 分析异常现象。
-3. 给出可能原因。
-4. 给出建议检查方向。
-5. 不要编造真实工厂经验。
-6. 明确说明数据来自模拟项目。
-"""
+    structured_payload = structured.model_dump()
+    references = [
+        {
+            "chunk_id": hit["chunk_id"],
+            "source": hit["source"],
+            "section": hit["section"],
+            "score": hit["score"],
+            "start_char": hit["start_char"],
+            "end_char": hit["end_char"],
+            "excerpt": hit["content"][:240],
+        }
+        for hit in retrieval["hits"]
+    ]
+    return {
+        "report": render_report_markdown(structured_payload),
+        "report_json": structured_payload,
+        "references": references,
+        "retrieval": retrieval,
+        "provider": provider,
+        "fallback": provider == "rules_fallback",
+        "latency_ms": round(
+            (time.perf_counter() - started_at) * 1000,
+            3,
+        ),
+        "prompt_tokens": prompt_tokens_total,
+        "completion_tokens": completion_tokens_total,
+    }
 
 
 def generate_report(equipment_id: str) -> str:
-    """调用 DeepSeek 生成设备诊断报告。"""
-    started_at = time.perf_counter()
-    prompt = build_report_prompt(equipment_id)
-    logger.info(
-        "llm_report_started",
-        extra={
-            "event": "llm_report_started",
-            "equipment": equipment_id,
-            "prompt_chars": len(prompt),
-            "model": settings.deepseek_model,
-        },
-    )
-
-    try:
-        response = _get_client().chat.completions.create(
-            model=settings.deepseek_model,
-            messages=[
-                {
-                    "role": "system",
-                    "content": "你是一名半导体设备AI助手",
-                },
-                {
-                    "role": "user",
-                    "content": prompt,
-                },
-            ],
-            temperature=settings.llm_temperature,
-        )
-    except Exception:
-        logger.exception(
-            "llm_report_failed",
-            extra={
-                "event": "llm_report_failed",
-                "equipment": equipment_id,
-                "duration_ms": round(
-                    (time.perf_counter() - started_at) * 1000,
-                    2,
-                ),
-            },
-        )
-        raise
-
-    duration_ms = round(
-        (time.perf_counter() - started_at) * 1000,
-        2,
-    )
-    usage = getattr(response, "usage", None)
-    logger.info(
-        "llm_report_completed",
-        extra={
-            "event": "llm_report_completed",
-            "equipment": equipment_id,
-            "duration_ms": duration_ms,
-            "prompt_tokens": getattr(usage, "prompt_tokens", None),
-            "completion_tokens": getattr(
-                usage,
-                "completion_tokens",
-                None,
-            ),
-        },
-    )
-
-    return response.choices[0].message.content
+    """Backward-compatible report-only return value."""
+    return generate_report_result(equipment_id)["report"]
 
 
 if __name__ == "__main__":

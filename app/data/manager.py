@@ -46,10 +46,23 @@ def create_database(db_file: str | Path | None = None) -> None:
                     process TEXT NOT NULL,
                     temperature_c REAL NOT NULL,
                     pressure_kpa REAL NOT NULL,
-                    yield_pct REAL NOT NULL
+                    yield_pct REAL NOT NULL,
+                    production_time TEXT
                 )
                 """
             )
+            columns = {
+                row[1]
+                for row in conn.execute(
+                    "PRAGMA table_info(wafer_production)"
+                ).fetchall()
+            }
+            if "production_time" not in columns:
+                conn.execute(
+                    "ALTER TABLE wafer_production "
+                    "ADD COLUMN production_time TEXT"
+                )
+
             conn.execute(
                 """
                 CREATE TABLE IF NOT EXISTS data_source_meta (
@@ -60,6 +73,26 @@ def create_database(db_file: str | Path | None = None) -> None:
                     synced_at TEXT NOT NULL
                 )
                 """
+            )
+            conn.execute(
+                "CREATE INDEX IF NOT EXISTS "
+                "idx_wafer_equipment "
+                "ON wafer_production(equipment_id)"
+            )
+            conn.execute(
+                "CREATE INDEX IF NOT EXISTS "
+                "idx_wafer_batch "
+                "ON wafer_production(batch_id)"
+            )
+            conn.execute(
+                "CREATE INDEX IF NOT EXISTS "
+                "idx_wafer_production_time "
+                "ON wafer_production(production_time)"
+            )
+            conn.execute(
+                "CREATE INDEX IF NOT EXISTS "
+                "idx_wafer_equipment_time "
+                "ON wafer_production(equipment_id, production_time)"
             )
 
 
@@ -145,9 +178,10 @@ def sync_production_data(
                         process,
                         temperature_c,
                         pressure_kpa,
-                        yield_pct
+                        yield_pct,
+                        production_time
                     )
-                    VALUES (?, ?, ?, ?, ?, ?)
+                    VALUES (?, ?, ?, ?, ?, ?, ?)
                     """,
                     [
                         (
@@ -157,6 +191,7 @@ def sync_production_data(
                             record["temperature_c"],
                             record["pressure_kpa"],
                             record["yield_pct"],
+                            record.get("production_time"),
                         )
                         for record in records
                     ],

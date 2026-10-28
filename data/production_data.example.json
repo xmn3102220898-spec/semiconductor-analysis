@@ -6,7 +6,8 @@
       "process": "Etching",
       "temperature_c": 82.5,
       "pressure_kpa": 101.2,
-      "yield_pct": 96.3
+      "yield_pct": 96.3,
+      "production_time": "2026-09-01 08:00:00"
     },
     {
       "batch_id": "DEMO-JSON-002",
@@ -14,7 +15,8 @@
       "process": "Etching",
       "temperature_c": 120.0,
       "pressure_kpa": 98.4,
-      "yield_pct": 94.1
+      "yield_pct": 94.1,
+      "production_time": "2026-09-02 08:00:00"
     },
     {
       "batch_id": "DEMO-JSON-003",
@@ -22,7 +24,8 @@
       "process": "Deposition",
       "temperature_c": 78.2,
       "pressure_kpa": 108.3,
-      "yield_pct": 95.8
+      "yield_pct": 95.8,
+      "production_time": "2026-09-03 08:00:00"
     }
   ]
 }

@@ -69,6 +69,10 @@ def _executable_lines(source_path: Path) -> set[int]:
             and isinstance(node.value, ast.Constant)
             and isinstance(node.value.value, str)
         )
+        and not (
+            isinstance(node, ast.AnnAssign)
+            and node.value is None
+        )
         and node.lineno not in ignored_lines
     }
     return lines

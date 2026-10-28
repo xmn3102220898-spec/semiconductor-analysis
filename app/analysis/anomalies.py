@@ -8,13 +8,18 @@ from __future__ import annotations
 
 from typing import Any, Iterable, Sequence
 
-from app.config import settings
+from app.analysis.rules import (
+    Thresholds,
+    default_thresholds,
+    resolve_equipment_rules,
+)
 from app.data.query import query_equipment_data
 
 
-TEMPERATURE_LIMIT = settings.temperature_limit
-PRESSURE_LIMIT = settings.pressure_limit
-YIELD_LIMIT = settings.yield_limit
+DEFAULT_THRESHOLDS = default_thresholds()
+TEMPERATURE_LIMIT = DEFAULT_THRESHOLDS.temperature_c
+PRESSURE_LIMIT = DEFAULT_THRESHOLDS.pressure_kpa
+YIELD_LIMIT = DEFAULT_THRESHOLDS.yield_pct
 
 ANOMALY_LABELS = {
     "temperature": "温度异常",
@@ -23,7 +28,10 @@ ANOMALY_LABELS = {
 }
 
 
-def _detect_anomalies(rows: Iterable[Sequence[Any]]) -> list[dict[str, str]]:
+def _detect_anomalies(
+    rows: Iterable[Sequence[Any]],
+    thresholds: Thresholds,
+) -> list[dict[str, Any]]:
     """从查询结果中识别异常事件。"""
     anomalies: list[dict[str, str]] = []
 
@@ -33,45 +41,59 @@ def _detect_anomalies(rows: Iterable[Sequence[Any]]) -> list[dict[str, str]]:
         pressure = row[5]
         yield_pct = row[6]
 
-        if temperature > TEMPERATURE_LIMIT:
+        if temperature > thresholds.temperature_c:
             anomalies.append(
                 {
                     "batch_id": batch_id,
+                    "metric": "temperature",
                     "type": ANOMALY_LABELS["temperature"],
                     "value": f"{temperature:g}℃",
+                    "raw_value": float(temperature),
+                    "threshold": thresholds.temperature_c,
                 }
             )
 
-        if pressure > PRESSURE_LIMIT:
+        if pressure > thresholds.pressure_kpa:
             anomalies.append(
                 {
                     "batch_id": batch_id,
+                    "metric": "pressure",
                     "type": ANOMALY_LABELS["pressure"],
                     "value": f"{pressure:g}kPa",
+                    "raw_value": float(pressure),
+                    "threshold": thresholds.pressure_kpa,
                 }
             )
 
-        if yield_pct < YIELD_LIMIT:
+        if yield_pct < thresholds.yield_pct:
             anomalies.append(
                 {
                     "batch_id": batch_id,
+                    "metric": "yield",
                     "type": ANOMALY_LABELS["yield"],
                     "value": f"{yield_pct:g}%",
+                    "raw_value": float(yield_pct),
+                    "threshold": thresholds.yield_pct,
                 }
             )
 
     return anomalies
 
 
-def analyze_equipment(equipment_id: str) -> list[dict[str, str]]:
+def analyze_equipment(equipment_id: str) -> list[dict[str, Any]]:
     """分析指定设备的异常事件。"""
-    return _detect_anomalies(query_equipment_data(equipment_id))
+    _, thresholds = resolve_equipment_rules(equipment_id)
+    return _detect_anomalies(
+        query_equipment_data(equipment_id),
+        thresholds,
+    )
 
 
 def build_equipment_analysis(equipment_id: str) -> dict[str, Any]:
     """一次查询生成仪表盘所需的异常事件和生产统计。"""
     rows = query_equipment_data(equipment_id)
-    anomalies = _detect_anomalies(rows)
+    equipment_type, thresholds = resolve_equipment_rules(equipment_id)
+    anomalies = _detect_anomalies(rows, thresholds)
 
     affected_batches = {item["batch_id"] for item in anomalies}
     temperatures = [float(row[4]) for row in rows]
@@ -110,6 +132,8 @@ def build_equipment_analysis(equipment_id: str) -> dict[str, Any]:
             if yields
             else None
         ),
+        "equipment_type": equipment_type,
+        "thresholds": thresholds.as_dict(),
     }
 
     return {
@@ -119,7 +143,7 @@ def build_equipment_analysis(equipment_id: str) -> dict[str, Any]:
     }
 
 
-def calculate_risk(anomalies: list[dict[str, str]]) -> tuple[int, str]:
+def calculate_risk(anomalies: list[dict[str, Any]]) -> tuple[int, str]:
     """保留原有风险评分接口，用于异常分析教学示例。"""
     score = 0
 

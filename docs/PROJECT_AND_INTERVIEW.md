@@ -80,7 +80,8 @@ CSV/JSON 模拟这一层，避免把模拟数据写死在 Python 代码中。
 ### 页面只负责展示，不调用大模型
 
 仪表盘是确定性数据看板，打开页面不依赖 DeepSeek 或向量模型。大模型
-诊断报告保留在 `/diagnose/{equipment_id}`，属于后续 RAG 阶段。
+诊断报告由 `GET /diagnose/{equipment_id}` 生成（只读预览），需要
+落库留痕时用 `POST` 同一路径。
 
 ## 4. 演示阈值与统计口径
 

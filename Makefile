@@ -1,6 +1,6 @@
 PYTHON ?= python
 
-.PHONY: help install run test lint bench check
+.PHONY: help install run test lint bench rag-eval rag-regression check
 .DEFAULT_GOAL := help
 
 help:
@@ -9,6 +9,8 @@ help:
 	@echo "make test     Run tests with core-analysis coverage gate"
 	@echo "make lint     Run compile and pyflakes checks"
 	@echo "make bench    Print query and analysis latency baseline"
+	@echo "make rag-eval Run the 30-question RAG evaluation"
+	@echo "make rag-regression Run deterministic RAG CI regression"
 	@echo "make check    Run lint and tests"
 
 install:
@@ -26,5 +28,14 @@ lint:
 
 bench:
 	$(PYTHON) -X utf8 scripts/bench.py
+	$(PYTHON) -X utf8 scripts/bench_scale.py
+	$(PYTHON) -X utf8 scripts/bench_api.py
+
+rag-eval:
+	$(PYTHON) -X utf8 scripts/evaluate_rag.py --fail-under 0.85
+
+rag-regression:
+	$(PYTHON) -X utf8 scripts/evaluate_rag.py \
+		--embedder deterministic --fail-under 0.85
 
 check: lint test

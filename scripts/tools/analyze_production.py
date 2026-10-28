@@ -6,11 +6,7 @@ import random
 
 import pandas as pd
 
-from app.analysis.anomalies import (
-    PRESSURE_LIMIT,
-    TEMPERATURE_LIMIT,
-    YIELD_LIMIT,
-)
+from app.analysis.rules import resolve_equipment_rules
 from app.config import settings
 from app.data.source import load_production_records
 
@@ -145,10 +141,25 @@ def detect_anomalies(df):
     # 初始化异常原因列，默认每条记录都没有异常
     result["anomaly_reason"] = ""
 
-    # 以下阈值仅为本项目模拟规则，不是行业标准
-    high_temperature = result["temperature_c"] > TEMPERATURE_LIMIT
-    high_pressure = result["pressure_kpa"] > PRESSURE_LIMIT
-    low_yield = result["yield_pct"] < YIELD_LIMIT
+    threshold_map = {
+        equipment_id: resolve_equipment_rules(equipment_id)[1]
+        for equipment_id in result["equipment_id"].unique()
+    }
+    result["temperature_limit"] = result["equipment_id"].map(
+        lambda value: threshold_map[value].temperature_c
+    )
+    result["pressure_limit"] = result["equipment_id"].map(
+        lambda value: threshold_map[value].pressure_kpa
+    )
+    result["yield_limit"] = result["equipment_id"].map(
+        lambda value: threshold_map[value].yield_pct
+    )
+
+    high_temperature = (
+        result["temperature_c"] > result["temperature_limit"]
+    )
+    high_pressure = result["pressure_kpa"] > result["pressure_limit"]
+    low_yield = result["yield_pct"] < result["yield_limit"]
 
     # 将各项异常原因组合起来
     result.loc[high_temperature, "anomaly_reason"] += "温度过高;"

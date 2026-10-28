@@ -5,7 +5,7 @@ from __future__ import annotations
 import time
 from datetime import datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.responses import JSONResponse, HTMLResponse, RedirectResponse
@@ -13,8 +13,8 @@ from fastapi.templating import Jinja2Templates
 
 from app.analysis.anomalies import build_equipment_analysis
 from app.analysis.health import (
+    build_health_score_breakdown,
     calculate_batch_health_trend,
-    calculate_health_score_from_anomalies,
     risk_level_from_score,
 )
 from app.analysis.trend import analyze_health_trend
@@ -23,11 +23,15 @@ from app.data.equipment import get_equipment_ids
 from app.data.history import (
     get_diagnosis_detail,
     get_diagnosis_records,
+    get_llm_call_stats,
     init_database,
     save_diagnosis,
 )
 from app.data.manager import create_database, sync_production_data
-from app.data.query import query_record_count
+from app.data.query import (
+    query_production_records,
+    query_record_count,
+)
 from app.errors import (
     AppError,
     app_error_handler,
@@ -35,9 +39,11 @@ from app.errors import (
     unexpected_error_response,
 )
 from app.llm import report as llm_reporter
+from app.rag.pipeline import get_knowledge_pipeline
 from app.observability import (
     configure_logging,
     get_logger,
+    get_request_id,
     normalize_request_id,
     reset_request_id,
     set_request_id,
@@ -45,6 +51,7 @@ from app.observability import (
 from app.data.source import (
     ProductionDataError,
     summarize_source,
+    validate_production_file,
 )
 
 
@@ -144,13 +151,12 @@ try:
     _initialize_storage()
 except ProductionDataError:
     logger.exception(
-        "application_initialization_failed",
+        "production_data_unavailable_at_startup",
         extra={
-            "event": "application_initialization_failed",
+            "event": "production_data_unavailable_at_startup",
             "reason": "production_data_error",
         },
     )
-    raise
 except Exception:
     logger.exception(
         "application_initialization_failed",
@@ -266,7 +272,10 @@ def health_history(equipment_id: str) -> dict[str, Any]:
     validate_equipment(equipment_id)
 
     analysis = build_equipment_analysis(equipment_id)
-    score = calculate_health_score_from_anomalies(analysis["anomalies"])
+    score_breakdown = build_health_score_breakdown(
+        analysis["anomalies"]
+    )
+    score = score_breakdown["final_score"]
     return get_trend_series(equipment_id, score, analysis=analysis)
 
 
@@ -291,16 +300,176 @@ def api_data_source() -> dict[str, Any]:
     return source
 
 
+@app.get("/api/data-quality")
+def api_data_quality() -> dict[str, Any]:
+    """Validate the current source without modifying the SQLite cache."""
+    return validate_production_file().as_dict()
+
+
+@app.get("/api/knowledge/search")
+def api_knowledge_search(
+    question: str = Query(min_length=2, max_length=500),
+    top_k: int = Query(default=4, ge=1, le=10),
+    source: str | None = Query(default=None),
+    equipment_type: str | None = Query(default=None),
+    parameter_type: str | None = Query(default=None),
+) -> dict[str, Any]:
+    """Search the unified hybrid knowledge index."""
+    filters = {
+        key: value
+        for key, value in {
+            "source": source,
+            "equipment_type": equipment_type,
+            "parameter_type": parameter_type,
+        }.items()
+        if value
+    }
+    try:
+        result = get_knowledge_pipeline().search(
+            question,
+            top_k=top_k,
+            filters=filters,
+        )
+    except Exception as exc:
+        logger.exception(
+            "knowledge_search_failed",
+            extra={"event": "knowledge_search_failed"},
+        )
+        raise HTTPException(
+            status_code=503,
+            detail=f"知识检索失败：{exc}",
+        ) from exc
+    return {
+        "data": result,
+        "meta": {"request_id": get_request_id()},
+    }
+
+
+@app.get("/api/knowledge/status")
+def api_knowledge_status() -> dict[str, Any]:
+    """Return the persisted index manifest."""
+    try:
+        status = get_knowledge_pipeline().status()
+    except Exception as exc:
+        logger.exception(
+            "knowledge_index_status_failed",
+            extra={"event": "knowledge_index_status_failed"},
+        )
+        raise HTTPException(
+            status_code=503,
+            detail=f"知识索引不可用：{exc}",
+        ) from exc
+    return {
+        "data": status,
+        "meta": {"request_id": get_request_id()},
+    }
+
+
+@app.get("/api/llm-stats")
+def api_llm_stats() -> dict[str, Any]:
+    return {
+        "data": get_llm_call_stats(),
+        "meta": {"request_id": get_request_id()},
+    }
+
+
+@app.get(
+    "/knowledge/chunk/{chunk_id}",
+    response_class=HTMLResponse,
+)
+def knowledge_chunk_page(
+    request: Request,
+    chunk_id: str,
+) -> HTMLResponse:
+    try:
+        chunk = get_knowledge_pipeline().get_chunk(chunk_id)
+    except Exception as exc:
+        raise HTTPException(
+            status_code=503,
+            detail=f"知识索引不可用：{exc}",
+        ) from exc
+    if chunk is None:
+        raise HTTPException(
+            status_code=404,
+            detail=f"未找到知识片段：{chunk_id}",
+        )
+    return templates.TemplateResponse(
+        request=request,
+        name="knowledge_chunk.html",
+        context={
+            "request": request,
+            "chunk": chunk,
+        },
+    )
+
+
+def _database_time(value: datetime | None) -> str | None:
+    if value is None:
+        return None
+    if value.tzinfo is not None:
+        value = value.astimezone().replace(tzinfo=None)
+    return value.strftime("%Y-%m-%d %H:%M:%S")
+
+
+@app.get("/api/production/records")
+def api_production_records(
+    equipment_id: str | None = Query(default=None),
+    start_time: datetime | None = Query(default=None),
+    end_time: datetime | None = Query(default=None),
+    sort_by: Literal[
+        "production_time",
+        "batch_id",
+        "equipment_id",
+        "temperature_c",
+        "pressure_kpa",
+        "yield_pct",
+    ] = Query(default="production_time"),
+    order: Literal["asc", "desc"] = Query(default="desc"),
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=20, ge=1, le=200),
+) -> dict[str, Any]:
+    """Paginated production records with whitelisted sort and time filters."""
+    if equipment_id:
+        validate_equipment(equipment_id)
+    if start_time and end_time and start_time > end_time:
+        raise AppError(
+            "INVALID_TIME_RANGE",
+            "start_time 不能晚于 end_time",
+            status_code=400,
+        )
+
+    result = query_production_records(
+        equipment_id=equipment_id,
+        start_time=_database_time(start_time),
+        end_time=_database_time(end_time),
+        sort_by=sort_by,
+        order=order,
+        page=page,
+        page_size=page_size,
+    )
+    return {
+        "data": result,
+        "meta": {
+            "request_id": get_request_id(),
+        },
+    }
+
+
 def _equipment_analysis_summary(equipment_id: str) -> dict[str, Any]:
     """组装设备列表接口使用的评分、风险和统计信息。"""
     analysis = build_equipment_analysis(equipment_id)
-    score = calculate_health_score_from_anomalies(analysis["anomalies"])
+    score_breakdown = build_health_score_breakdown(
+        analysis["anomalies"]
+    )
 
     return {
         "equipment": equipment_id,
-        "health_score": score,
-        "risk_level": risk_level_from_score(score),
+        "health_score": score_breakdown["final_score"],
+        "risk_level": risk_level_from_score(
+            score_breakdown["final_score"]
+        ),
         "stats": analysis["stats"],
+        "score_breakdown": score_breakdown,
     }
 
 
@@ -322,7 +491,10 @@ def api_equipment_analysis(equipment_id: str) -> dict[str, Any]:
     """供外部系统读取单台设备的统计、评分和异常事件。"""
     validate_equipment(equipment_id)
     analysis = build_equipment_analysis(equipment_id)
-    score = calculate_health_score_from_anomalies(analysis["anomalies"])
+    score_breakdown = build_health_score_breakdown(
+        analysis["anomalies"]
+    )
+    score = score_breakdown["final_score"]
 
     return {
         "equipment": equipment_id,
@@ -330,6 +502,7 @@ def api_equipment_analysis(equipment_id: str) -> dict[str, Any]:
         "risk_level": risk_level_from_score(score),
         "stats": analysis["stats"],
         "anomalies": analysis["anomalies"],
+        "score_breakdown": score_breakdown,
     }
 
 
@@ -338,26 +511,36 @@ def equipment_health(equipment_id: str) -> dict[str, Any]:
     validate_equipment(equipment_id)
 
     analysis = build_equipment_analysis(equipment_id)
-    score = calculate_health_score_from_anomalies(analysis["anomalies"])
+    score_breakdown = build_health_score_breakdown(
+        analysis["anomalies"]
+    )
+    score = score_breakdown["final_score"]
 
     return {
         "equipment": equipment_id,
         "health_score": score,
         "risk_level": risk_level_from_score(score),
         "stats": analysis["stats"],
+        "score_breakdown": score_breakdown,
     }
 
 
-@app.get("/diagnose/{equipment_id}")
-def diagnose_equipment(equipment_id: str) -> dict[str, Any]:
+def _run_diagnosis(
+    equipment_id: str,
+    *,
+    persist: bool,
+) -> dict[str, Any]:
     validate_equipment(equipment_id)
 
     analysis = build_equipment_analysis(equipment_id)
-    score = calculate_health_score_from_anomalies(analysis["anomalies"])
+    score_breakdown = build_health_score_breakdown(
+        analysis["anomalies"]
+    )
+    score = score_breakdown["final_score"]
     risk_level = risk_level_from_score(score)
 
     try:
-        report = llm_reporter.generate_report(equipment_id)
+        report_result = llm_reporter.generate_report_result(equipment_id)
     except Exception as exc:
         logger.exception(
             "diagnosis_report_generation_failed",
@@ -371,19 +554,46 @@ def diagnose_equipment(equipment_id: str) -> dict[str, Any]:
             detail=f"AI 报告生成失败：{exc}",
         ) from exc
 
-    save_diagnosis(
-        equipment_id,
-        score,
-        risk_level,
-        report,
-    )
+    if persist:
+        save_diagnosis(
+            equipment_id,
+            score,
+            risk_level,
+            report_result["report"],
+            report_result["references"],
+            report_result["report_json"],
+            report_result["provider"],
+            report_result["fallback"],
+        )
 
     return {
         "equipment": equipment_id,
         "health_score": score,
         "risk_level": risk_level,
-        "report": report,
+        "score_breakdown": score_breakdown,
+        "report": report_result["report"],
+        "report_json": report_result["report_json"],
+        "references": report_result["references"],
+        "retrieval": report_result["retrieval"],
+        "provider": report_result["provider"],
+        "fallback": report_result["fallback"],
+        "persisted": persist,
+        "latency_ms": report_result["latency_ms"],
+        "prompt_tokens": report_result["prompt_tokens"],
+        "completion_tokens": report_result["completion_tokens"],
     }
+
+
+@app.get("/diagnose/{equipment_id}")
+def diagnose_preview(equipment_id: str) -> dict[str, Any]:
+    """Generate a diagnosis without writing history (safe, idempotent GET)."""
+    return _run_diagnosis(equipment_id, persist=False)
+
+
+@app.post("/diagnose/{equipment_id}")
+def diagnose_and_record(equipment_id: str) -> dict[str, Any]:
+    """Generate a diagnosis and persist it to the history table."""
+    return _run_diagnosis(equipment_id, persist=True)
 
 
 @app.get("/dashboard", response_class=HTMLResponse)
@@ -397,7 +607,8 @@ def dashboard(
     analysis = build_equipment_analysis(selected_equipment)
     anomalies = analysis["anomalies"]
     stats = analysis["stats"]
-    current_score = calculate_health_score_from_anomalies(anomalies)
+    score_breakdown = build_health_score_breakdown(anomalies)
+    current_score = score_breakdown["final_score"]
     current_risk = risk_level_from_score(current_score)
 
     data = {
@@ -405,6 +616,7 @@ def dashboard(
         "health_score": current_score,
         "risk_level": current_risk,
         "abnormal_events": anomalies,
+        "score_breakdown": score_breakdown,
     }
 
     records = get_diagnosis_records(selected_equipment)
@@ -428,7 +640,9 @@ def dashboard(
             "history_times": series["days"],
             "history_count": series["history_count"],
             "trend": series["trend"],
+            "score_breakdown": score_breakdown,
             "source_info": get_source_info(),
+            "data_quality": validate_production_file().as_dict(),
         },
     )
 
@@ -476,5 +690,9 @@ def diagnosis_detail(
             "request": request,
             "detail": detail,
             "report": detail["report_text"],
+            "references": detail.get("references", []),
+            "structured_report": detail.get("report_json"),
+            "provider": detail.get("provider"),
+            "fallback": detail.get("fallback", False),
         },
     )

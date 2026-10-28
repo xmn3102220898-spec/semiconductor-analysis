@@ -1,0 +1,29 @@
+{
+  "data_quality": {
+    "total_records": 30,
+    "valid_records": 30,
+    "rejected_records": 0
+  },
+  "equipment": {
+    "ETCH-01": {
+      "health_score": 100,
+      "risk_level": "正常",
+      "record_count": 7,
+      "anomaly_events": 0
+    },
+    "ETCH-02": {
+      "health_score": 45,
+      "risk_level": "高风险",
+      "record_count": 12,
+      "anomaly_events": 3,
+      "affected_batches": 3,
+      "trend_scores": [100, 85, 85, 85, 85, 85, 75, 45, 45, 45, 45, 45]
+    },
+    "ETCH-03": {
+      "health_score": 100,
+      "risk_level": "正常",
+      "record_count": 11,
+      "anomaly_events": 0
+    }
+  }
+}

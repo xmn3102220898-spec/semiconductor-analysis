@@ -5,6 +5,7 @@ from app.analysis.health import (
     calculate_batch_health_trend,
     calculate_health_score,
     calculate_health_score_from_anomalies,
+    build_health_score_breakdown,
     risk_level_from_score,
 )
 
@@ -13,6 +14,7 @@ __all__ = [
     "calculate_batch_health_trend",
     "calculate_health_score",
     "calculate_health_score_from_anomalies",
+    "build_health_score_breakdown",
     "risk_level_from_score",
 ]
 

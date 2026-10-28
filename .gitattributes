@@ -1,0 +1,17 @@
+# 统一换行，避免 Windows 上 autocrlf 造成整文件 diff
+* text=auto
+
+*.py   text eol=lf
+*.md   text eol=lf
+*.json text eol=lf
+*.txt  text eol=lf
+*.yml  text eol=lf
+*.yaml text eol=lf
+*.toml text eol=lf
+Makefile     text eol=lf
+Dockerfile   text eol=lf
+*.sh   text eol=lf
+
+*.png  binary
+*.jpg  binary
+*.npy  binary

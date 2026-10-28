@@ -8,6 +8,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PRODUCTION_DATA_FILE=/app/data/production_data.csv \
     PRODUCTION_DB_FILE=/app/storage/production.db \
     DIAGNOSIS_DB_FILE=/app/storage/diagnosis_history.db \
+    KNOWLEDGE_INDEX_DIR=/app/storage/rag_index \
     OUTPUT_DIR=/app/output \
     HF_HOME=/app/model-cache
 
@@ -20,6 +21,8 @@ RUN python -m pip install --upgrade pip \
 COPY app ./app
 COPY templates ./templates
 COPY data ./data
+COPY config ./config
+COPY prompts ./prompts
 COPY knowledge_base ./knowledge_base
 COPY main_api.py .
 

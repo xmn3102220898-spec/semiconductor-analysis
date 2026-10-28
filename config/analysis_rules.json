@@ -1,0 +1,47 @@
+{
+  "default_thresholds": {
+    "temperature_c": 100.0,
+    "pressure_kpa": 120.0,
+    "yield_pct": 90.0
+  },
+  "health_penalties": {
+    "temperature": 15,
+    "pressure": 10,
+    "yield": 30
+  },
+  "equipment_prefixes": {
+    "ETCH": "etch"
+  },
+  "equipment_types": {
+    "etch": {
+      "temperature_c": 100.0,
+      "pressure_kpa": 120.0,
+      "yield_pct": 90.0
+    }
+  },
+  "equipment_overrides": {},
+  "validation": {
+    "temperature_c": {
+      "min": -100.0,
+      "max": 500.0
+    },
+    "pressure_kpa": {
+      "min": 0.0,
+      "max": 1000.0
+    },
+    "yield_pct": {
+      "min": 0.0,
+      "max": 100.0
+    },
+    "equipment_id_pattern": "^[A-Z][A-Z0-9]*(?:-[A-Z0-9]+)+$",
+    "allowed_processes": [
+      "Etching",
+      "Deposition",
+      "Lithography",
+      "CMP",
+      "Diffusion",
+      "Implant",
+      "Clean"
+    ]
+  }
+}

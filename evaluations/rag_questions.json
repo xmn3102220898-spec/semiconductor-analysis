@@ -1,0 +1,242 @@
+[
+  {
+    "id": "T01",
+    "category": "temperature",
+    "question": "温度过高应该先检查什么？",
+    "sources": ["equipment_alarm.txt", "etch_equipment.txt"],
+    "parameter_type": "temperature",
+    "keywords": ["温度", "传感器"]
+  },
+  {
+    "id": "T02",
+    "category": "temperature",
+    "question": "温度变化会影响刻蚀工艺吗？",
+    "sources": ["etch_equipment.txt"],
+    "parameter_type": "temperature",
+    "keywords": ["温度", "刻蚀"]
+  },
+  {
+    "id": "T03",
+    "category": "temperature",
+    "question": "温度传感器漂移如何确认？",
+    "sources": ["equipment_alarm.txt", "etch_equipment.txt"],
+    "parameter_type": "temperature",
+    "keywords": ["温度传感器"]
+  },
+  {
+    "id": "T04",
+    "category": "temperature",
+    "question": "温度超过一百摄氏度是什么演示规则？",
+    "sources": ["process_rules.txt"],
+    "parameter_type": "temperature",
+    "keywords": ["温度异常规则"]
+  },
+  {
+    "id": "T05",
+    "category": "temperature",
+    "question": "温控系统异常应该核对哪些记录？",
+    "sources": ["equipment_alarm.txt", "etch_equipment.txt"],
+    "parameter_type": "temperature",
+    "keywords": ["温控系统"]
+  },
+  {
+    "id": "T06",
+    "category": "temperature",
+    "question": "温度偏离设定值时能否直接判断设备损坏？",
+    "sources": ["equipment_alarm.txt", "process_rules.txt"],
+    "parameter_type": "temperature",
+    "keywords": ["设定值", "温度"]
+  },
+  {
+    "id": "P01",
+    "category": "pressure",
+    "question": "压力过高应该查看哪些设备状态？",
+    "sources": ["equipment_alarm.txt", "etch_equipment.txt"],
+    "parameter_type": "pressure",
+    "keywords": ["压力", "真空"]
+  },
+  {
+    "id": "P02",
+    "category": "pressure",
+    "question": "腔体压力变化会影响等离子体吗？",
+    "sources": ["etch_equipment.txt"],
+    "parameter_type": "pressure",
+    "keywords": ["压力", "等离子体"]
+  },
+  {
+    "id": "P03",
+    "category": "pressure",
+    "question": "压力控制阀异常如何排查？",
+    "sources": ["etch_equipment.txt", "equipment_alarm.txt"],
+    "parameter_type": "pressure",
+    "keywords": ["压力控制阀"]
+  },
+  {
+    "id": "P04",
+    "category": "pressure",
+    "question": "压力超过一百二十千帕的模拟规则是什么？",
+    "sources": ["process_rules.txt"],
+    "parameter_type": "pressure",
+    "keywords": ["压力异常规则"]
+  },
+  {
+    "id": "P05",
+    "category": "pressure",
+    "question": "真空系统状态应该怎样核对？",
+    "sources": ["equipment_alarm.txt", "etch_equipment.txt"],
+    "parameter_type": "pressure",
+    "keywords": ["真空系统"]
+  },
+  {
+    "id": "P06",
+    "category": "pressure",
+    "question": "单个压力读数能证明零部件损坏吗？",
+    "sources": ["equipment_alarm.txt"],
+    "parameter_type": "pressure",
+    "keywords": ["压力", "零部件损坏"]
+  },
+  {
+    "id": "Y01",
+    "category": "yield",
+    "question": "良率过低时需要确认哪些数据口径？",
+    "sources": ["equipment_alarm.txt"],
+    "parameter_type": "yield",
+    "keywords": ["良率", "统计口径"]
+  },
+  {
+    "id": "Y02",
+    "category": "yield",
+    "question": "良率下降能否直接认定是设备损坏？",
+    "sources": ["etch_equipment.txt", "process_rules.txt"],
+    "parameter_type": "yield",
+    "keywords": ["良率", "损坏"]
+  },
+  {
+    "id": "Y03",
+    "category": "yield",
+    "question": "低良率异常的模拟阈值是多少？",
+    "sources": ["process_rules.txt"],
+    "parameter_type": "yield",
+    "keywords": ["良率规则"]
+  },
+  {
+    "id": "Y04",
+    "category": "yield",
+    "question": "良率下降可能涉及哪些制造环节？",
+    "sources": ["etch_equipment.txt"],
+    "parameter_type": "yield",
+    "keywords": ["良率下降", "制造环节"]
+  },
+  {
+    "id": "Y05",
+    "category": "yield",
+    "question": "异常批次和正常批次应该比较哪些内容？",
+    "sources": ["equipment_alarm.txt"],
+    "parameter_type": "yield",
+    "keywords": ["异常批次", "正常批次"]
+  },
+  {
+    "id": "Y06",
+    "category": "yield",
+    "question": "规则触发能否证明参数导致了良率下降？",
+    "sources": ["process_rules.txt"],
+    "parameter_type": "yield",
+    "keywords": ["良率下降", "不能直接证明"]
+  },
+  {
+    "id": "M01",
+    "category": "maintenance",
+    "question": "多种异常同时出现时应该怎么做？",
+    "sources": ["equipment_alarm.txt"],
+    "parameter_type": "general",
+    "keywords": ["多种异常", "时间顺序"]
+  },
+  {
+    "id": "M02",
+    "category": "maintenance",
+    "question": "相关性等同于因果关系吗？",
+    "sources": ["equipment_alarm.txt"],
+    "parameter_type": "general",
+    "keywords": ["相关性", "因果关系"]
+  },
+  {
+    "id": "M03",
+    "category": "maintenance",
+    "question": "设备维护和参数调整有什么安全要求？",
+    "sources": ["equipment_alarm.txt"],
+    "parameter_type": "general",
+    "keywords": ["安全", "设备"]
+  },
+  {
+    "id": "M04",
+    "category": "maintenance",
+    "question": "异常排查时为什么要核对报警时间和设定值？",
+    "sources": ["equipment_alarm.txt"],
+    "parameter_type": "temperature",
+    "keywords": ["报警时间", "设定值"]
+  },
+  {
+    "id": "M05",
+    "category": "maintenance",
+    "question": "怎样统计每台设备的异常批次和平均值？",
+    "sources": ["process_rules.txt"],
+    "parameter_type": "general",
+    "keywords": ["异常批次", "平均"]
+  },
+  {
+    "id": "M06",
+    "category": "maintenance",
+    "question": "异常记录应该按照什么顺序进行对齐？",
+    "sources": ["equipment_alarm.txt"],
+    "parameter_type": "general",
+    "keywords": ["时间顺序", "报警"]
+  },
+  {
+    "id": "E01",
+    "category": "process",
+    "question": "刻蚀设备通常包含哪些系统？",
+    "sources": ["etch_equipment.txt"],
+    "parameter_type": "general",
+    "keywords": ["刻蚀设备", "系统"]
+  },
+  {
+    "id": "E02",
+    "category": "process",
+    "question": "刻蚀工艺需要控制哪些结果？",
+    "sources": ["etch_equipment.txt"],
+    "parameter_type": "general",
+    "keywords": ["刻蚀", "形状", "深度"]
+  },
+  {
+    "id": "E03",
+    "category": "process",
+    "question": "为什么刻蚀要控制材料去除均匀性？",
+    "sources": ["etch_equipment.txt"],
+    "parameter_type": "general",
+    "keywords": ["刻蚀", "均匀性"]
+  },
+  {
+    "id": "E04",
+    "category": "process",
+    "question": "气体输送系统异常会影响刻蚀吗？",
+    "sources": ["etch_equipment.txt"],
+    "parameter_type": "general",
+    "keywords": ["气体输送系统"]
+  },
+  {
+    "id": "E05",
+    "category": "process",
+    "question": "射频功率系统在刻蚀设备中起什么作用？",
+    "sources": ["etch_equipment.txt"],
+    "parameter_type": "general",
+    "keywords": ["射频功率系统"]
+  },
+  {
+    "id": "E06",
+    "category": "process",
+    "question": "本项目的生产数据分析规则包含哪些指标？",
+    "sources": ["process_rules.txt"],
+    "parameter_type": "general",
+    "keywords": ["模拟生产数据", "规则"]
+  }
+]

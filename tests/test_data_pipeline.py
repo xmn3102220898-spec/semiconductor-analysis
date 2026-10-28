@@ -1,21 +1,34 @@
 from __future__ import annotations
 
 import json
+import os
 import re
+import socket
 import sqlite3
+import subprocess
+import sys
 import tempfile
+import time
 import unittest
 from contextlib import closing
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import patch
+from urllib.error import HTTPError
+from urllib.request import urlopen
 
 from anomaly_analysis import (
     build_equipment_analysis,
     calculate_risk,
     format_anomaly_result,
 )
-from database_manager import sync_production_data
+from database_manager import (
+    create_database,
+    get_connection,
+    sync_production_data,
+)
 from health_score import (
+    build_health_score_breakdown,
     calculate_batch_health_trend,
     calculate_health_score_from_anomalies,
     risk_level_from_score,
@@ -23,8 +36,15 @@ from health_score import (
 from production_source import (
     ProductionDataError,
     load_production_records,
+    validate_production_file,
 )
 from trend_analysis import analyze_health_trend
+from app.analysis.rules import (
+    RuleConfigurationError,
+    default_thresholds,
+    load_rules,
+    resolve_equipment_rules,
+)
 
 
 class ProductionSourceTests(unittest.TestCase):
@@ -193,6 +213,290 @@ class ProductionSourceTests(unittest.TestCase):
             with self.assertRaises(ProductionDataError):
                 load_production_records(data_file)
 
+    def test_data_quality_report_collects_multiple_reasons(self) -> None:
+        valid = {
+            "batch_id": "QUALITY-001",
+            "equipment_id": "ETCH-X",
+            "process": "Etching",
+            "temperature_c": 80,
+            "pressure_kpa": 100,
+            "yield_pct": 95,
+        }
+        payload = [
+            valid,
+            {**valid},
+            {
+                **valid,
+                "batch_id": "QUALITY-002",
+                "equipment_id": "etch-invalid",
+            },
+            {
+                **valid,
+                "batch_id": "QUALITY-003",
+                "temperature_c": 900,
+            },
+            {
+                **valid,
+                "batch_id": "QUALITY-004",
+                "process": "UnknownProcess",
+            },
+            {
+                key: value
+                for key, value in valid.items()
+                if key != "yield_pct"
+            }
+            | {"batch_id": "QUALITY-005"},
+        ]
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            data_file = Path(temp_dir) / "dirty.json"
+            data_file.write_text(
+                json.dumps(payload),
+                encoding="utf-8",
+            )
+            report = validate_production_file(data_file)
+
+        self.assertFalse(report.healthy)
+        self.assertEqual(report.total_records, 6)
+        self.assertEqual(report.valid_records, 1)
+        self.assertEqual(report.rejected_records, 5)
+        self.assertEqual(report.reason_counts["duplicate_batch"], 1)
+        self.assertEqual(report.reason_counts["equipment_id_invalid"], 1)
+        self.assertEqual(
+            report.reason_counts["temperature_out_of_range"],
+            1,
+        )
+        self.assertEqual(report.reason_counts["process_not_allowed"], 1)
+        self.assertEqual(report.reason_counts["missing_field"], 1)
+
+    def test_invalid_source_does_not_modify_database(self) -> None:
+        payload = [
+            {
+                "batch_id": "BAD-001",
+                "equipment_id": "ETCH-X",
+                "process": "Etching",
+                "temperature_c": 900,
+                "pressure_kpa": 100,
+                "yield_pct": 95,
+            }
+        ]
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_path = Path(temp_dir)
+            data_file = temp_path / "bad.json"
+            database_file = temp_path / "production.db"
+            data_file.write_text(json.dumps(payload), encoding="utf-8")
+
+            with self.assertRaises(ProductionDataError):
+                sync_production_data(data_file, database_file, force=True)
+
+            with closing(sqlite3.connect(database_file)) as conn:
+                count = conn.execute(
+                    "SELECT COUNT(*) FROM wafer_production"
+                ).fetchone()[0]
+
+        self.assertEqual(count, 0)
+
+    def test_empty_and_missing_column_files_are_reported(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_path = Path(temp_dir)
+            empty_file = temp_path / "empty.csv"
+            empty_file.write_text(
+                "batch_id,equipment_id,process,"
+                "temperature_c,pressure_kpa,yield_pct\n",
+                encoding="utf-8",
+            )
+            empty_report = validate_production_file(empty_file)
+
+            missing_column = temp_path / "missing.csv"
+            missing_column.write_text(
+                "batch_id,equipment_id,process,"
+                "temperature_c,yield_pct\n"
+                "MISSING-001,ETCH-X,Etching,80,95\n",
+                encoding="utf-8",
+            )
+            missing_report = validate_production_file(missing_column)
+
+        self.assertFalse(empty_report.healthy)
+        self.assertEqual(
+            empty_report.file_errors[0].code,
+            "empty_file",
+        )
+        self.assertFalse(missing_report.healthy)
+        self.assertEqual(missing_report.rejected_records, 1)
+        self.assertEqual(
+            missing_report.reason_counts["missing_field"],
+            1,
+        )
+
+    def test_invalid_production_time_is_rejected(self) -> None:
+        record = {
+            "batch_id": "TIME-001",
+            "equipment_id": "ETCH-X",
+            "process": "Etching",
+            "temperature_c": 80,
+            "pressure_kpa": 100,
+            "yield_pct": 95,
+            "production_time": "not-a-time",
+        }
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            data_file = Path(temp_dir) / "invalid_time.json"
+            data_file.write_text(
+                json.dumps([record]),
+                encoding="utf-8",
+            )
+            report = validate_production_file(data_file)
+
+        self.assertFalse(report.healthy)
+        self.assertEqual(report.reason_counts["invalid_time"], 1)
+
+    def test_legacy_schema_is_migrated_without_data_loss(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            database_file = Path(temp_dir) / "legacy.db"
+            with closing(sqlite3.connect(database_file)) as conn:
+                conn.execute(
+                    """
+                    CREATE TABLE wafer_production (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        batch_id TEXT NOT NULL,
+                        equipment_id TEXT NOT NULL,
+                        process TEXT NOT NULL,
+                        temperature_c REAL NOT NULL,
+                        pressure_kpa REAL NOT NULL,
+                        yield_pct REAL NOT NULL
+                    )
+                    """
+                )
+                conn.execute(
+                    """
+                    INSERT INTO wafer_production (
+                        batch_id, equipment_id, process,
+                        temperature_c, pressure_kpa, yield_pct
+                    ) VALUES ('LEGACY-001', 'ETCH-X', 'Etching', 80, 100, 95)
+                    """
+                )
+                conn.commit()
+
+            create_database(database_file)
+
+            with closing(
+                get_connection(database_file)
+            ) as conn:
+                columns = {
+                    row[1]
+                    for row in conn.execute(
+                        "PRAGMA table_info(wafer_production)"
+                    )
+                }
+                indexes = {
+                    row[1]
+                    for row in conn.execute(
+                        "PRAGMA index_list(wafer_production)"
+                    )
+                }
+                count = conn.execute(
+                    "SELECT COUNT(*) FROM wafer_production"
+                ).fetchone()[0]
+
+        self.assertIn("production_time", columns)
+        self.assertIn("idx_wafer_equipment", indexes)
+        self.assertIn("idx_wafer_batch", indexes)
+        self.assertIn("idx_wafer_production_time", indexes)
+        self.assertIn("idx_wafer_equipment_time", indexes)
+        self.assertEqual(count, 1)
+
+    def test_dirty_source_keeps_app_up_for_quality_report(self) -> None:
+        dirty_payload = [
+            {
+                "batch_id": "BAD-001",
+                "equipment_id": "ETCH-X",
+                "process": "Etching",
+                "temperature_c": 900,
+                "pressure_kpa": 100,
+                "yield_pct": 95,
+            }
+        ]
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_path = Path(temp_dir)
+            data_file = temp_path / "dirty.json"
+            database_file = temp_path / "production.db"
+            diagnosis_file = temp_path / "diagnosis.db"
+            data_file.write_text(
+                json.dumps(dirty_payload),
+                encoding="utf-8",
+            )
+
+            with socket.socket() as sock:
+                sock.bind(("127.0.0.1", 0))
+                port = sock.getsockname()[1]
+
+            environment = os.environ.copy()
+            environment.update({
+                "PRODUCTION_DATA_FILE": str(data_file),
+                "PRODUCTION_DB_FILE": str(database_file),
+                "DIAGNOSIS_DB_FILE": str(diagnosis_file),
+                "LOG_LEVEL": "CRITICAL",
+            })
+            creation_flags = getattr(
+                subprocess,
+                "CREATE_NO_WINDOW",
+                0,
+            )
+            process = subprocess.Popen(
+                [
+                    sys.executable,
+                    "-m",
+                    "uvicorn",
+                    "main_api:app",
+                    "--host",
+                    "127.0.0.1",
+                    "--port",
+                    str(port),
+                ],
+                cwd=Path(__file__).parents[1],
+                env=environment,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                creationflags=creation_flags,
+            )
+
+            try:
+                quality = None
+                for _ in range(30):
+                    time.sleep(0.2)
+                    try:
+                        with urlopen(
+                            f"http://127.0.0.1:{port}/api/data-quality",
+                            timeout=1,
+                        ) as response:
+                            quality = json.load(response)
+                        break
+                    except OSError:
+                        continue
+
+                self.assertIsNotNone(quality)
+                self.assertFalse(quality["healthy"])
+                self.assertEqual(quality["rejected_records"], 1)
+
+                with self.assertRaises(HTTPError) as health_error:
+                    urlopen(
+                        f"http://127.0.0.1:{port}/healthz",
+                        timeout=2,
+                    )
+                self.assertEqual(health_error.exception.code, 503)
+            finally:
+                process.terminate()
+                process.wait(timeout=10)
+
+            with closing(sqlite3.connect(database_file)) as conn:
+                count = conn.execute(
+                    "SELECT COUNT(*) FROM wafer_production"
+                ).fetchone()[0]
+
+        self.assertEqual(count, 0)
+
 
 class AnalysisTests(unittest.TestCase):
     def test_equipment_statistics_and_scores(self) -> None:
@@ -291,6 +595,144 @@ class AnalysisTests(unittest.TestCase):
         self.assertEqual(risk_level_from_score(60), "关注")
         self.assertEqual(risk_level_from_score(59), "高风险")
 
+    def test_score_breakdown_is_auditable(self) -> None:
+        analysis = build_equipment_analysis("ETCH-02")
+        breakdown = build_health_score_breakdown(
+            analysis["anomalies"]
+        )
+
+        self.assertEqual(breakdown["base_score"], 100)
+        self.assertEqual(breakdown["total_penalty"], 55)
+        self.assertEqual(breakdown["final_score"], 45)
+        self.assertEqual(len(breakdown["deductions"]), 3)
+        self.assertEqual(
+            [item["penalty"] for item in breakdown["deductions"]],
+            [15, 10, 30],
+        )
+
+    def test_equipment_specific_rule_resolution(self) -> None:
+        equipment_type, thresholds = resolve_equipment_rules("ETCH-02")
+
+        self.assertEqual(equipment_type, "etch")
+        self.assertEqual(thresholds.temperature_c, 100.0)
+        self.assertEqual(thresholds.pressure_kpa, 120.0)
+        self.assertEqual(thresholds.yield_pct, 90.0)
+
+    def test_equipment_override_can_change_threshold(self) -> None:
+        source = (
+            Path(__file__).parents[1]
+            / "config"
+            / "analysis_rules.json"
+        )
+        rules = json.loads(source.read_text(encoding="utf-8"))
+        rules["equipment_types"]["etch"]["pressure_kpa"] = 110.0
+        rules["equipment_overrides"]["ETCH-02"] = {
+            "temperature_c": 99.0
+        }
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            rule_file = Path(temp_dir) / "rules.json"
+            rule_file.write_text(
+                json.dumps(rules),
+                encoding="utf-8",
+            )
+            _, thresholds = resolve_equipment_rules(
+                "ETCH-02",
+                str(rule_file),
+            )
+
+        self.assertEqual(thresholds.temperature_c, 99.0)
+        self.assertEqual(thresholds.pressure_kpa, 110.0)
+
+    def test_rule_file_errors_and_environment_overrides(self) -> None:
+        source = (
+            Path(__file__).parents[1]
+            / "config"
+            / "analysis_rules.json"
+        )
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_path = Path(temp_dir)
+
+            with self.assertRaises(RuleConfigurationError):
+                load_rules(str(temp_path / "missing.json"))
+
+            invalid_json = temp_path / "invalid.json"
+            invalid_json.write_text("{", encoding="utf-8")
+            with self.assertRaises(RuleConfigurationError):
+                load_rules(str(invalid_json))
+
+            invalid_defaults = temp_path / "invalid_defaults.json"
+            invalid_defaults.write_text(
+                json.dumps({"default_thresholds": []}),
+                encoding="utf-8",
+            )
+            with self.assertRaises(RuleConfigurationError):
+                load_rules(str(invalid_defaults))
+
+            invalid_pattern = json.loads(
+                source.read_text(encoding="utf-8")
+            )
+            invalid_pattern["validation"]["equipment_id_pattern"] = "["
+            invalid_pattern_file = temp_path / "invalid_pattern.json"
+            invalid_pattern_file.write_text(
+                json.dumps(invalid_pattern),
+                encoding="utf-8",
+            )
+            with self.assertRaises(RuleConfigurationError):
+                load_rules(str(invalid_pattern_file))
+
+        load_rules.cache_clear()
+        with patch.dict(
+            "os.environ",
+            {
+                "TEMPERATURE_LIMIT": "101",
+                "PRESSURE_LIMIT": "121",
+                "YIELD_LIMIT": "91",
+            },
+        ):
+            overridden = load_rules(str(source))
+            self.assertEqual(overridden.defaults.temperature_c, 101.0)
+            self.assertEqual(overridden.defaults.pressure_kpa, 121.0)
+            self.assertEqual(overridden.defaults.yield_pct, 91.0)
+        load_rules.cache_clear()
+
+        self.assertEqual(default_thresholds().temperature_c, 100.0)
+
+    def test_rules_file_wins_when_environment_is_unset(self) -> None:
+        source = (
+            Path(__file__).parents[1]
+            / "config"
+            / "analysis_rules.json"
+        )
+        rules = json.loads(source.read_text(encoding="utf-8"))
+        rules["default_thresholds"]["temperature_c"] = 105.0
+        rules["default_thresholds"]["pressure_kpa"] = 118.0
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            rule_file = Path(temp_dir) / "rules.json"
+            rule_file.write_text(
+                json.dumps(rules),
+                encoding="utf-8",
+            )
+            without_overrides = {
+                key: value
+                for key, value in os.environ.items()
+                if key
+                not in {
+                    "TEMPERATURE_LIMIT",
+                    "PRESSURE_LIMIT",
+                    "YIELD_LIMIT",
+                }
+            }
+            load_rules.cache_clear()
+            with patch.dict("os.environ", without_overrides, clear=True):
+                loaded = load_rules(str(rule_file))
+            load_rules.cache_clear()
+
+        self.assertEqual(loaded.defaults.temperature_c, 105.0)
+        self.assertEqual(loaded.defaults.pressure_kpa, 118.0)
+
     def test_batch_trend_applies_penalties_in_order(self) -> None:
         records = [
             (1, "B-001", "ETCH-X", "Etching", 80, 100, 95),
@@ -385,12 +827,175 @@ class DashboardTests(unittest.TestCase):
         for script in executable_scripts:
             self.assertNotIn("{{", script)
             self.assertNotIn("{%", script)
+        self.assertIn("暂无已保存的诊断报告", template)
+        self.assertIn("统一 RAG 检索已接入", template)
 
     def test_root_redirects_to_dashboard(self) -> None:
         response = self.client.get("/", follow_redirects=False)
 
         self.assertEqual(response.status_code, 307)
         self.assertEqual(response.headers["location"], "/dashboard")
+
+    def test_openapi_contains_all_documented_endpoints(self) -> None:
+        response = self.client.get("/openapi.json")
+
+        self.assertEqual(response.status_code, 200)
+        paths = set(response.json()["paths"])
+        required = {
+            "/",
+            "/healthz",
+            "/api/data-source",
+            "/api/data-quality",
+            "/api/production/records",
+            "/api/knowledge/search",
+            "/api/knowledge/status",
+            "/api/llm-stats",
+            "/knowledge/chunk/{chunk_id}",
+            "/diagnosis_detail/{record_id}",
+            "/api/equipment",
+            "/api/equipment/{equipment_id}/analysis",
+            "/dashboard",
+            "/health/{equipment_id}",
+            "/health_history/{equipment_id}",
+            "/diagnose/{equipment_id}",
+            "/history",
+            "/diagnosis_detail/{record_id}",
+        }
+        self.assertTrue(required.issubset(paths))
+        self.assertIn(
+            "post",
+            response.json()["paths"]["/diagnose/{equipment_id}"],
+        )
+
+    def test_history_and_detail_pages_are_covered(self) -> None:
+        history = self.client.get(
+            "/history",
+            params={"equipment_id": "ETCH-02"},
+        )
+        self.assertEqual(history.status_code, 200)
+        self.assertIn("设备历史诊断记录", history.text)
+
+        import app.api.main as api_module
+
+        detail = {
+            "equipment": "ETCH-02",
+            "health_score": 45,
+            "risk_level": "高风险",
+            "report_text": "# report",
+            "time": "2026-01-01 00:00:00",
+            "references": [],
+            "report_json": None,
+            "provider": "rules_fallback",
+            "fallback": True,
+        }
+        with patch.object(
+            api_module,
+            "get_diagnosis_detail",
+            return_value=detail,
+        ):
+            response = self.client.get("/diagnosis_detail/1")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("规则降级", response.text)
+
+    def test_valid_health_endpoint(self) -> None:
+        response = self.client.get("/health/ETCH-02")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["health_score"], 45)
+
+    def test_knowledge_search_failure_returns_503(self) -> None:
+        with patch(
+            "app.api.main.get_knowledge_pipeline",
+            side_effect=RuntimeError("index unavailable"),
+        ):
+            response = self.client.get(
+                "/api/knowledge/search",
+                params={"question": "温度异常"},
+            )
+
+        self.assertEqual(response.status_code, 503)
+        self.assertEqual(
+            response.json()["error"]["code"],
+            "SERVICE_UNAVAILABLE",
+        )
+
+    def test_knowledge_search_api_returns_citations(self) -> None:
+        fake_pipeline = SimpleNamespace(
+            search=lambda question, top_k, filters: {
+                "question": question,
+                "strategy": "hybrid_vector_bm25",
+                "filters": filters,
+                "no_match": False,
+                "score_distribution": [0.88],
+                "hits": [
+                    {
+                        "chunk_id": "chunk-test-1",
+                        "source": "equipment_alarm.txt",
+                        "section": "温度过高",
+                        "content": "检查温度传感器。",
+                        "parameter_type": "temperature",
+                        "equipment_type": "general",
+                        "score": 0.88,
+                    }
+                ],
+            },
+            status=lambda: {"chunk_count": 1},
+            get_chunk=lambda chunk_id: {
+                "chunk_id": chunk_id,
+                "title": "设备异常排查参考",
+                "section": "温度过高",
+                "source": "equipment_alarm.txt",
+                "content": "检查温度传感器。",
+                "start_char": 0,
+                "end_char": 20,
+                "parameter_type": "temperature",
+                "equipment_type": "general",
+            },
+        )
+
+        with patch(
+            "app.api.main.get_knowledge_pipeline",
+            return_value=fake_pipeline,
+        ):
+            response = self.client.get(
+                "/api/knowledge/search",
+                params={"question": "温度异常怎么检查"},
+            )
+            status = self.client.get("/api/knowledge/status")
+            chunk = self.client.get(
+                "/knowledge/chunk/chunk-test-1"
+            )
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertEqual(
+            payload["data"]["hits"][0]["chunk_id"],
+            "chunk-test-1",
+        )
+        self.assertTrue(payload["meta"]["request_id"])
+        self.assertEqual(status.status_code, 200)
+        self.assertEqual(
+            status.json()["data"]["chunk_count"],
+            1,
+        )
+        self.assertEqual(chunk.status_code, 200)
+        self.assertIn("chunk-test-1", chunk.text)
+
+    def test_llm_stats_api(self) -> None:
+        stats = {
+            "attempts": 3,
+            "successes": 2,
+            "fallbacks": 1,
+        }
+        with patch(
+            "app.api.main.get_llm_call_stats",
+            return_value=stats,
+        ):
+            response = self.client.get("/api/llm-stats")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["data"], stats)
 
     def test_health_check(self) -> None:
         response = self.client.get(
@@ -425,6 +1030,15 @@ class DashboardTests(unittest.TestCase):
         self.assertEqual(payload["risk_level"], "高风险")
         self.assertEqual(payload["stats"]["total"], 3)
         self.assertEqual(payload["stats"]["affected_batches"], 3)
+        self.assertEqual(
+            payload["stats"]["thresholds"]["temperature_c"],
+            100.0,
+        )
+        self.assertEqual(payload["stats"]["equipment_type"], "etch")
+        self.assertEqual(
+            payload["score_breakdown"]["total_penalty"],
+            55,
+        )
 
     def test_data_source_api_reports_external_file(self) -> None:
         response = self.client.get("/api/data-source")
@@ -434,6 +1048,87 @@ class DashboardTests(unittest.TestCase):
         self.assertEqual(payload["name"], "production_data.csv")
         self.assertEqual(payload["format"], "CSV")
         self.assertEqual(payload["record_count"], 30)
+
+    def test_data_quality_api_reports_healthy_source(self) -> None:
+        response = self.client.get("/api/data-quality")
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertTrue(payload["healthy"])
+        self.assertEqual(payload["total_records"], 30)
+        self.assertEqual(payload["rejected_records"], 0)
+
+    def test_production_records_support_filters_and_pagination(self) -> None:
+        response = self.client.get(
+            "/api/production/records",
+            params={
+                "sort_by": "batch_id",
+                "order": "asc",
+                "page": 2,
+                "page_size": 5,
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()["data"]
+        self.assertEqual(payload["pagination"]["total"], 30)
+        self.assertEqual(payload["pagination"]["total_pages"], 6)
+        self.assertEqual(
+            [item["batch_id"] for item in payload["items"]],
+            [
+                "BATCH-006",
+                "BATCH-007",
+                "BATCH-008",
+                "BATCH-009",
+                "BATCH-010",
+            ],
+        )
+
+        filtered = self.client.get(
+            "/api/production/records",
+            params={
+                "equipment_id": "ETCH-02",
+                "start_time": "2026-09-10T00:00:00",
+                "end_time": "2026-09-12T23:59:59",
+                "sort_by": "production_time",
+                "order": "asc",
+            },
+        ).json()["data"]
+        self.assertEqual(filtered["pagination"]["total"], 3)
+        self.assertEqual(
+            [item["batch_id"] for item in filtered["items"]],
+            ["BATCH-010", "BATCH-011", "BATCH-012"],
+        )
+        self.assertEqual(
+            filtered["items"][0]["production_time"],
+            "2026-09-10 08:00:00",
+        )
+
+    def test_production_records_reject_invalid_query_parameters(self) -> None:
+        invalid_range = self.client.get(
+            "/api/production/records",
+            params={
+                "start_time": "2026-09-20T00:00:00",
+                "end_time": "2026-09-10T00:00:00",
+            },
+        )
+        self.assertEqual(invalid_range.status_code, 400)
+        self.assertEqual(
+            invalid_range.json()["error"]["code"],
+            "INVALID_TIME_RANGE",
+        )
+
+        invalid_sort = self.client.get(
+            "/api/production/records",
+            params={"sort_by": "id"},
+        )
+        self.assertEqual(invalid_sort.status_code, 422)
+
+        invalid_page = self.client.get(
+            "/api/production/records",
+            params={"page": 0},
+        )
+        self.assertEqual(invalid_page.status_code, 422)
 
     def test_dashboard_switches_equipment_data(self) -> None:
         response = self.client.get(
@@ -458,6 +1153,10 @@ class DashboardTests(unittest.TestCase):
             response.text,
             r'<option\s+value="ETCH-02"\s+selected',
         )
+        self.assertIn("温度 &gt; 100.0℃", response.text)
+        self.assertIn("<th>规则扣分</th>", response.text)
+        self.assertIn("最近诊断报告", response.text)
+        self.assertIn("检索引用", response.text)
 
     def test_history_chart_and_trend_use_same_current_score(self) -> None:
         response = self.client.get("/health_history/ETCH-02")
@@ -513,6 +1212,87 @@ class DashboardTests(unittest.TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertIn("ETCH-03", response.text)
+
+    def test_diagnose_returns_retrieval_references(self) -> None:
+        import app.api.main as api_module
+
+        reference = {
+            "chunk_id": "chunk-123",
+            "source": "equipment_alarm.txt",
+            "section": "温度过高",
+            "score": 0.91,
+            "start_char": 10,
+            "end_char": 50,
+            "excerpt": "检查温度传感器。",
+        }
+        report_result = {
+            "report": "模拟报告",
+            "report_json": {
+                "equipment_id": "ETCH-02",
+                "health_score": 45,
+                "risk_level": "高风险",
+            },
+            "references": [reference],
+            "retrieval": {
+                "strategy": "hybrid_vector_bm25",
+                "hits": [reference],
+                "no_match": False,
+            },
+            "provider": "deepseek",
+            "fallback": False,
+            "latency_ms": 1.0,
+            "prompt_tokens": 10,
+            "completion_tokens": 20,
+        }
+
+        with patch.object(
+            api_module.llm_reporter,
+            "generate_report_result",
+            return_value=report_result,
+        ), patch.object(api_module, "save_diagnosis") as save_mock:
+            response = self.client.get("/diagnose/ETCH-02")
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertEqual(
+            payload["references"][0]["chunk_id"],
+            "chunk-123",
+        )
+        self.assertEqual(payload["report"], "模拟报告")
+        self.assertEqual(payload["provider"], "deepseek")
+        self.assertFalse(payload["fallback"])
+        self.assertFalse(payload["persisted"])
+        save_mock.assert_not_called()
+
+    def test_post_diagnose_persists_history(self) -> None:
+        import app.api.main as api_module
+
+        report_result = {
+            "report": "模拟报告",
+            "report_json": {"equipment_id": "ETCH-02"},
+            "references": [],
+            "retrieval": {
+                "strategy": "hybrid_vector_bm25",
+                "hits": [],
+                "no_match": True,
+            },
+            "provider": "rule-fallback",
+            "fallback": True,
+            "latency_ms": 1.0,
+            "prompt_tokens": 0,
+            "completion_tokens": 0,
+        }
+
+        with patch.object(
+            api_module.llm_reporter,
+            "generate_report_result",
+            return_value=report_result,
+        ), patch.object(api_module, "save_diagnosis") as save_mock:
+            response = self.client.post("/diagnose/ETCH-02")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.json()["persisted"])
+        save_mock.assert_called_once()
 
     def test_invalid_api_equipment_returns_404(self) -> None:
         response = self.client.get("/health/NOT-FOUND")

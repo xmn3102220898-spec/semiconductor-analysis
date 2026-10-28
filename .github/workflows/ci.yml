@@ -28,6 +28,9 @@ jobs:
       - name: Test with coverage gate
         run: make test
 
+      - name: RAG regression
+        run: make rag-regression
+
   docker-smoke:
     needs: test
     runs-on: ubuntu-latest
